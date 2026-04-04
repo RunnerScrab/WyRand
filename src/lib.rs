@@ -1,4 +1,5 @@
 #![allow(unused)]
+#[derive(Clone, Copy, Debug)]
 pub struct WyRand {
     state: u64,
 }
@@ -23,6 +24,11 @@ impl WyRand {
         ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64)
     }
 
+    fn next_u32(&mut self) -> u32 {
+        self.next_rand_u64().wrapping_shr(32) as u32
+    }
+
+    #[inline(always)]
     pub fn next_rand_f32(&mut self) -> f32 {
         let rv = self.next_rand_u64();
         const MASK: u64 = u64::MAX ^ 0xFFFF_FFFF_F800_0000; 
