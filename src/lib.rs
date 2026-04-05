@@ -72,34 +72,34 @@ impl WyRand {
     // Symmetric uncertainty: Returns a value shifted by a Gaussian distribution.
     // Result = mean +/- (sigma * Gaussian)
     #[inline(always)]
-    pub fn next_symmetric_uncertainty(&mut self, mean: f32, sigma: f32) -> f32 {
-        self.next_gaussian_f32().mul_add(sigma, mean)
+    pub fn next_symmetric_uncertainty(&mut self, mode: f32, sigma: f32) -> f32 {
+        self.next_gaussian_f32().mul_add(sigma, mode)
     }
 
     // Asymmetric uncertainty: Uses a split-normal distribution. sigma_low_mag must be
     // an absolute value
-    pub fn next_asymmetric_uncertainty(&mut self, mean: f32, sigma_low_mag: f32, sigma_high_mag: f32) -> f32 {
+    pub fn next_asymmetric_uncertainty(&mut self, mode: f32, sigma_low_mag: f32, sigma_high_mag: f32) -> f32 {
         let z = self.next_gaussian_f32();
         if z < 0.0 {
-            z.mul_add(sigma_low_mag, mean)
+            z.mul_add(sigma_low_mag, mode)
         } else {
-            z.mul_add(sigma_high_mag, mean)
+            z.mul_add(sigma_high_mag, mode)
         }
     }
 
     // Clamped Gaussian
-    pub fn next_clamped_symmetric_uncertainty(&mut self, mean: f32, sigma: f32, limit: f32) -> f32 {
+    pub fn next_clamped_symmetric_uncertainty(&mut self, mode: f32, sigma: f32, limit: f32) -> f32 {
         let z = self.next_gaussian_f32().clamp(-limit, limit);
-        z.mul_add(sigma, mean)
+        z.mul_add(sigma, mode)
     }
 
-    pub fn next_ln_symmetric(&mut self, ln_mean: f32, sigma_ln: f32) -> f32 {
-        let exponent = self.next_symmetric_uncertainty(ln_mean, sigma_ln);
+    pub fn next_ln_symmetric(&mut self, ln_mode: f32, sigma_ln: f32) -> f32 {
+        let exponent = self.next_symmetric_uncertainty(ln_mode, sigma_ln);
         exponent.exp()
     }
     
-    pub fn next_log_symmetric(&mut self, log_mean: f32, sigma_log: f32) -> f32 {
-        let exponent = self.next_symmetric_uncertainty(log_mean, sigma_log);
+    pub fn next_log_symmetric(&mut self, log_mode: f32, sigma_log: f32) -> f32 {
+        let exponent = self.next_symmetric_uncertainty(log_mode, sigma_log);
         10.0_f32.powf(exponent)
     }
 
