@@ -35,6 +35,12 @@ impl WyRand {
         f32::from_bits(((rv & MASK) | 0x3F80_0000) as u32) - 1.0
     }
 
+    #[inline(always)]
+    pub fn next_rand_f32_in_range(&mut self, min: f32, max: f32) -> f32 {
+        let rv = self.next_rand_f32();
+        rv.mul_add(max - min, min)
+    }
+
     // Helper to get a range
     #[inline(always)]
     pub fn next_rand_in_range(&mut self, max: usize) -> usize {
@@ -51,7 +57,7 @@ mod test {
         println!("Running rand f32 test");
         let mut rng = WyRand::new(1);
         for _ in 0..128 {
-            let rv = rng.next_rand_f32();
+            let rv = rng.next_rand_f32_in_range(1.0, 12.5);
             println!("{}", rv);
         }
     }
