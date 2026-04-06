@@ -83,9 +83,9 @@ impl WyRand {
         let rv: u64 = self.next_u64();
         let u1 = 1.0 - self.next_f32();
         let u2 = 1.0 - self.next_f32();
-        let r = (-fast_mul2_f32(u1.ln())).sqrt();
+        let r = (-fast_mul2_f32(u1.ln())).approx_sqrt();
         //r * (Self::TWO_PI_F32 * u1).sin()
-        r * (Self::TWO_PI_F32 * u2).cos()
+        r * (Self::TWO_PI_F32 * u2).approx_cos()
     }
 
     // Generates a standard normal random variable (mean=0, std_dev=1)
@@ -94,9 +94,9 @@ impl WyRand {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_f64();
         let u2 = 1.0 - self.next_f64();
-        let r = (-fast_mul2_f64(u1.ln())).sqrt();
+        let r = (-fast_mul2_f64(u1.ln())).approx_sqrt();
         //r * (Self::TWO_PI_F64 * u1).sin()
-        r * (Self::TWO_PI_F64 * u2).cos()
+        r * (Self::TWO_PI_F64 * u2).approx_cos()
     }
 
     // Symmetric uncertainty: returns a value shifted by a Gaussian distribution.
