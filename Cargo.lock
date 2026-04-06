@@ -3,5 +3,13 @@
 version = 4
 
 [[package]]
+name = "fptricks"
+version = "0.1.0"
+source = "git+https://github.com/RunnerScrab/fptricks.git#d3e34e1d488e14afd9e754fa17be79d52512d6eb"
+
+[[package]]
 name = "wyrand"
 version = "0.1.0"
+dependencies = [
+ "fptricks",
+]

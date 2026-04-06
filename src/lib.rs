@@ -1,4 +1,6 @@
 #![allow(unused)]
+use fptricks::*;
+
 #[derive(Clone, Copy, Debug)]
 pub struct WyRand(u64);
 
@@ -67,9 +69,11 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_usize_rv_in_range(&mut self, max: usize) -> usize {
-        //TODO: Replace this modulus division
-        (self.next_u64() as usize) % max
+        self.next_u64_in_range(0, max as u64) as usize
     }
+
+    const TWO_PI_F32: f32 = 2.0 * std::f32::consts::PI;
+    const TWO_PI_F64: f64 = 2.0 * std::f64::consts::PI;
 
     // Generates a standard normal random variable (mean=0, std_dev=1)
     // using the Box-Muller transform
@@ -77,9 +81,9 @@ impl WyRand {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_f32();
         let u2 = 1.0 - self.next_f32();
-        let r = (-2.0 * u1.ln()).sqrt();
-        //r * (2.0 * std::f32::consts::PI * u1).sin()
-        r * (2.0 * std::f32::consts::PI * u2).cos()
+        let r = (-fast_mul2_f32(u1.ln())).sqrt();
+        //r * (Self::TWO_PI_F32 * u1).sin()
+        r * (Self::TWO_PI_F32 * u2).cos()
     }
 
     // Generates a standard normal random variable (mean=0, std_dev=1)
@@ -88,9 +92,9 @@ impl WyRand {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_f64();
         let u2 = 1.0 - self.next_f64();
-        let r = (-2.0 * u1.ln()).sqrt();
-        //r * (2.0 * std::f64::consts::PI * u1).sin()
-        r * (2.0 * std::f64::consts::PI * u2).cos()
+        let r = (-fast_mul2_f64(u1.ln())).sqrt();
+        //r * (Self::TWO_PI_F64 * u1).sin()
+        r * (Self::TWO_PI_F64 * u2).cos()
     }
 
     // Symmetric uncertainty: returns a value shifted by a Gaussian distribution.
@@ -109,20 +113,20 @@ impl WyRand {
     // an absolute value
     pub fn next_asymmetric_uncertainty_f32(&mut self, mode: f32, sigma_low_mag: f32, sigma_high_mag: f32) -> f32 {
         let z = self.next_gaussian_f32();
-        if z < 0.0 {
-            z.mul_add(sigma_low_mag, mode)
-        } else {
-            z.mul_add(sigma_high_mag, mode)
-        }
+        let zlt_mask: u32 = ((z < 0.0) as u32).wrapping_neg();
+        let zgeq_mask: u32 = ((z >= 0.0) as u32).wrapping_neg(); 
+
+        let sigma = (sigma_low_mag.to_bits() & zlt_mask) | (sigma_high_mag.to_bits() & zgeq_mask);
+        z.mul_add(f32::from_bits(sigma), mode)
     }
 
     pub fn next_asymmetric_uncertainty_f64(&mut self, mode: f64, sigma_low_mag: f64, sigma_high_mag: f64) -> f64 {
         let z = self.next_gaussian_f64();
-        if z < 0.0 {
-            z.mul_add(sigma_low_mag, mode)
-        } else {
-            z.mul_add(sigma_high_mag, mode)
-        }
+        let zlt_mask: u64 = ((z < 0.0) as u64).wrapping_neg();
+        let zgeq_mask: u64 = ((z >= 0.0) as u64).wrapping_neg(); 
+
+        let sigma = (sigma_low_mag.to_bits() & zlt_mask) | (sigma_high_mag.to_bits() & zgeq_mask);
+        z.mul_add(f64::from_bits(sigma), mode)
     }
 
     // Clamped Gaussian
