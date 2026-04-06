@@ -77,10 +77,12 @@ impl WyRand {
 
     // Generates a standard normal random variable (mean=0, std_dev=1)
     // using the Box-Muller transform
+    #[inline(always)]
     pub fn next_gaussian_f32(&mut self) -> f32 {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
-        let u1 = 1.0 - self.next_f32();
-        let u2 = 1.0 - self.next_f32();
+        let rv: u64 = self.next_u64();
+        let u1 = 1.0 - f32::from_bits(rv.wrapping_shr(32) as u32);
+        let u2 = 1.0 - f32::from_bits(rv as u32);
         let r = (-fast_mul2_f32(u1.ln())).sqrt();
         //r * (Self::TWO_PI_F32 * u1).sin()
         r * (Self::TWO_PI_F32 * u2).cos()
