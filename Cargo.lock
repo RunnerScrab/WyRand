@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "fptricks"
 version = "0.1.0"
-source = "git+https://github.com/RunnerScrab/fptricks.git#4403220cd7d306549ef9066f074d90e9da0131d7"
+source = "git+https://github.com/RunnerScrab/fptricks.git#b86858ee498c1b6af22eb534f9b234a3eab70e46"
 
 [[package]]
 name = "wyrand"
