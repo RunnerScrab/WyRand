@@ -1,3 +1,5 @@
+#![allow(unused)]
+use fptricks::*;
 ///This library uses approximate math functions for procedural generation, and is not
 ///appropriate when high accuracy or cryptographically secure random numbers are required.
 ///
@@ -9,8 +11,6 @@
 ///let mut rng = WyRand::new(42);
 ///let rv = rng.next_f32();
 ///```
-#![allow(unused)]
-use fptricks::*;
 
 #[derive(Clone, Copy, Debug)]
 pub struct WyRand(u64);
