@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "fptricks"
 version = "0.1.0"
-source = "git+https://github.com/RunnerScrab/fptricks.git#a6c38f9de1adf02901055cf8a0eac1b339b51799"
+source = "git+https://github.com/RunnerScrab/fptricks.git#9c3283a9783dff66851b632906591c9338ff9071"
 dependencies = [
  "log",
 ]

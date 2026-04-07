@@ -44,7 +44,7 @@ impl WyRand {
     #[inline(always)]
     pub fn next_f32(&mut self) -> f32 {
         let rv = self.next_u64();
-        const MASK: u64 = u64::MAX ^ 0xFFFF_FFFF_F800_0000; 
+        const MASK: u64 = u64::MAX ^ 0xFFFF_FFFF_F800_0000;
         f32::from_bits(((rv & MASK) | 0x3F80_0000) as u32) - 1.0
     }
 
@@ -83,7 +83,7 @@ impl WyRand {
         let rv: u64 = self.next_u64();
         let u1 = 1.0 - self.next_f32();
         let u2 = 1.0 - self.next_f32();
-        let r = (-fast_mul2_f32(u1.approx_ln())).approx_sqrt();
+        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         //r * (Self::TWO_PI_F32 * u1).sin()
         r * (Self::TWO_PI_F32 * u2).approx_cos()
     }
@@ -94,7 +94,7 @@ impl WyRand {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_f64();
         let u2 = 1.0 - self.next_f64();
-        let r = (-fast_mul2_f64(u1.approx_ln())).approx_sqrt();
+        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         //r * (Self::TWO_PI_F64 * u1).sin()
         r * (Self::TWO_PI_F64 * u2).approx_cos()
     }
@@ -113,31 +113,51 @@ impl WyRand {
 
     // Asymmetric uncertainty: uses a split-normal distribution. sigma_low_mag must be
     // an absolute value
-    pub fn next_asymmetric_uncertainty_f32(&mut self, mode: f32, sigma_low_mag: f32, sigma_high_mag: f32) -> f32 {
+    pub fn next_asymmetric_uncertainty_f32(
+        &mut self,
+        mode: f32,
+        sigma_low_mag: f32,
+        sigma_high_mag: f32,
+    ) -> f32 {
         let z = self.next_gaussian_f32();
         let zlt_mask: u32 = ((z < 0.0) as u32).wrapping_neg();
-        let zgeq_mask: u32 = ((z >= 0.0) as u32).wrapping_neg(); 
+        let zgeq_mask: u32 = ((z >= 0.0) as u32).wrapping_neg();
 
         let sigma = (sigma_low_mag.to_bits() & zlt_mask) | (sigma_high_mag.to_bits() & zgeq_mask);
         z.mul_add(f32::from_bits(sigma), mode)
     }
 
-    pub fn next_asymmetric_uncertainty_f64(&mut self, mode: f64, sigma_low_mag: f64, sigma_high_mag: f64) -> f64 {
+    pub fn next_asymmetric_uncertainty_f64(
+        &mut self,
+        mode: f64,
+        sigma_low_mag: f64,
+        sigma_high_mag: f64,
+    ) -> f64 {
         let z = self.next_gaussian_f64();
         let zlt_mask: u64 = ((z < 0.0) as u64).wrapping_neg();
-        let zgeq_mask: u64 = ((z >= 0.0) as u64).wrapping_neg(); 
+        let zgeq_mask: u64 = ((z >= 0.0) as u64).wrapping_neg();
 
         let sigma = (sigma_low_mag.to_bits() & zlt_mask) | (sigma_high_mag.to_bits() & zgeq_mask);
         z.mul_add(f64::from_bits(sigma), mode)
     }
 
     // Clamped Gaussian
-    pub fn next_clamped_symmetric_uncertainty_f32(&mut self, mode: f32, sigma: f32, limit: f32) -> f32 {
+    pub fn next_clamped_symmetric_uncertainty_f32(
+        &mut self,
+        mode: f32,
+        sigma: f32,
+        limit: f32,
+    ) -> f32 {
         let z = self.next_gaussian_f32().clamp(-limit, limit);
         z.mul_add(sigma, mode)
     }
 
-    pub fn next_clamped_symmetric_uncertainty_f64(&mut self, mode: f64, sigma: f64, limit: f64) -> f64 {
+    pub fn next_clamped_symmetric_uncertainty_f64(
+        &mut self,
+        mode: f64,
+        sigma: f64,
+        limit: f64,
+    ) -> f64 {
         let z = self.next_gaussian_f64().clamp(-limit, limit);
         z.mul_add(sigma, mode)
     }
@@ -151,8 +171,7 @@ impl WyRand {
         let exponent = self.next_symmetric_uncertainty_f64(ln_mode, sigma_ln);
         exponent.exp()
     }
-    
-    
+
     pub fn next_log_symmetric_f32(&mut self, log_mode: f32, sigma_log: f32) -> f32 {
         let exponent = self.next_symmetric_uncertainty_f32(log_mode, sigma_log);
         10.0_f32.powf(exponent)
@@ -163,6 +182,107 @@ impl WyRand {
         10.0_f64.powf(exponent)
     }
 
+    #[inline(always)]
+    pub fn next_rayleigh_f32(&mut self, sigma: f32) -> f32 {
+        let u = 1.0 - self.next_f32();
+        let r = (-u.approx_ln().fast_mul2()).approx_sqrt();
+        r * sigma
+    }
+
+    #[inline(always)]
+    pub fn next_rayleigh_f64(&mut self, sigma: f64) -> f64 {
+        let u = 1.0 - self.next_f64();
+        let r = (-u.approx_ln().fast_mul2()).approx_sqrt();
+        r * sigma
+    }
+
+    pub fn next_gamma_f32(&mut self, alpha: f32) -> f32 {
+        let aleqz: u32 = ((alpha <= 0.0) as u32).wrapping_neg();
+        let alt1: u32 = ((alpha < 1.0) as u32).wrapping_neg();
+
+        let u1 = 1.0 - self.next_f32();
+        let mut gamma = self.next_gamma_f32(alpha + 1.0);
+        gamma *= (u1.approx_ln() / alpha).approx_exp();
+
+        let d = alpha - 1.0 / 3.0;
+        let c = 1.0 / (9.0 * d).approx_sqrt();
+        if (aleqz & alt1) != 0 {
+            loop {
+                let z = self.next_gaussian_f32();
+                let v = 1.0 + c * z;
+                if v <= 0.0 {
+                    continue;
+                }
+                let v = v.approx_powi(3);
+
+                let u = 1.0 - self.next_f32();
+                let z_sq = z * z;
+                let dv = d * v;
+                let cond1 = u < 1.0 - 0.0331 * z_sq * z_sq;
+                let cond2 = u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln());
+
+                if cond1 {
+                    return dv;
+                }
+                if cond2 {
+                    return dv;
+                }
+            }
+        }
+        f32::from_bits(!aleqz & (alt1 & gamma.to_bits()))
+    }
+
+    pub fn next_gamma_f64(&mut self, alpha: f64) -> f64 {
+        if alpha <= 0.0 {
+            return 0.0;
+        }
+        if alpha < 1.0 {
+            let u1 = 1.0 - self.next_f64();
+            let gamma = self.next_gamma_f64(alpha + 1.0);
+            return gamma * (u1.approx_ln() / alpha).approx_exp();
+        }
+
+        let d = alpha - 1.0 / 3.0;
+        let c = 1.0 / (9.0 * d).approx_sqrt();
+        loop {
+            let z = self.next_gaussian_f64();
+            let v = 1.0 + c * z;
+            if v <= 0.0 {
+                continue;
+            }
+            let v = v * v * v;
+
+            let u = 1.0 - self.next_f64();
+            let z_sq = z * z;
+
+            if u < 1.0 - 0.0331 * z_sq * z_sq {
+                return d * v;
+            }
+            if u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln()) {
+                return d * v;
+            }
+        }
+    }
+
+    pub fn next_beta_f32(&mut self, alpha: f32, beta: f32) -> f32 {
+        let gamma_a = self.next_gamma_f32(alpha);
+        let gamma_b = self.next_gamma_f32(beta);
+        let sum = gamma_a + gamma_b;
+        if sum == 0.0 {
+            return 0.0;
+        }
+        gamma_a / sum
+    }
+
+    pub fn next_beta_f64(&mut self, alpha: f64, beta: f64) -> f64 {
+        let gamma_a = self.next_gamma_f64(alpha);
+        let gamma_b = self.next_gamma_f64(beta);
+        let sum = gamma_a + gamma_b;
+        if sum == 0.0 {
+            return 0.0;
+        }
+        gamma_a / sum
+    }
 }
 
 #[cfg(test)]
