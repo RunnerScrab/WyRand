@@ -285,7 +285,7 @@ impl WyRand {
         let gamma_a = self.next_gamma_f32(alpha);
         let gamma_b = self.next_gamma_f32(beta);
         let sum = gamma_a + gamma_b;
-        let sumz = ((sum == 0.0) as u32).wrapping_neg();
+        let sumz = ((sum != 0.0) as u32).wrapping_neg();
         f32::from_bits((gamma_a / sum).to_bits() & sumz)
     }
 
@@ -294,7 +294,7 @@ impl WyRand {
         let gamma_a = self.next_gamma_f64(alpha);
         let gamma_b = self.next_gamma_f64(beta);
         let sum = gamma_a + gamma_b;
-        let sumz = ((sum == 0.0) as u64).wrapping_neg();
+        let sumz = ((sum != 0.0) as u64).wrapping_neg();
         f64::from_bits((gamma_a / sum).to_bits() & sumz)
     }
 
