@@ -543,7 +543,7 @@ impl WyRand {
     }
 
     #[inline]
-    pub fn fill_split_normal_from_table_f32<M, T>(&mut self, buf: &mut [f32], mode: M, table: T)
+    pub fn fill_split_normal_stuple_f32<M, T>(&mut self, buf: &mut [f32], mode: M, table: T)
     where
         M: ParamSource<f32>,
         T: ParamSource<(f32, f32)>,
@@ -596,7 +596,7 @@ impl WyRand {
     }
 
     #[inline]
-    pub fn fill_split_normal_from_table_f64<M, T>(&mut self, buf: &mut [f64], mode: M, table: T)
+    pub fn fill_split_normal_stuple_f64<M, T>(&mut self, buf: &mut [f64], mode: M, table: T)
     where
         M: ParamSource<f64>,
         T: ParamSource<(f64, f64)>,
@@ -725,7 +725,7 @@ mod tests {
         let mode = 0.0;
         let table = vec![(1.0, 2.0); n]; // lo=1.0, hi=2.0
         
-        rng.fill_split_normal_from_table_f32(&mut buf, mode, &table);
+        rng.fill_split_normal_stuple_f32(&mut buf, mode, &table);
         
         for &val in &buf {
             // Standard normal x. If x < 0, val = m + x * lo. If x >= 0, val = m + x * hi.
