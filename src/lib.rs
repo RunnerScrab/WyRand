@@ -29,7 +29,10 @@ impl<'a> ParamSource<f32> for &'a [f32] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
-        if offset < self.len() {
+        let len = self.len();
+        if offset + N <= len {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < len {
             let src = &self[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -47,7 +50,10 @@ impl<'a> ParamSource<f32> for &'a Vec<f32> {
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
         let slice = self.as_slice();
-        if offset < slice.len() {
+        let len = slice.len();
+        if offset + N <= len {
+            arr.copy_from_slice(&slice[offset..offset + N]);
+        } else if offset < len {
             let src = &slice[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -64,7 +70,9 @@ impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
-        if offset < LANES {
+        if offset + N <= LANES {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < LANES {
             let src = &self[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -90,7 +98,10 @@ impl<'a> ParamSource<f64> for &'a [f64] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
-        if offset < self.len() {
+        let len = self.len();
+        if offset + N <= len {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < len {
             let src = &self[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -108,7 +119,10 @@ impl<'a> ParamSource<f64> for &'a Vec<f64> {
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
         let slice = self.as_slice();
-        if offset < slice.len() {
+        let len = slice.len();
+        if offset + N <= len {
+            arr.copy_from_slice(&slice[offset..offset + N]);
+        } else if offset < len {
             let src = &slice[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -125,7 +139,9 @@ impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
-        if offset < LANES {
+        if offset + N <= LANES {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < LANES {
             let src = &self[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
@@ -235,6 +251,78 @@ impl WyRand {
     pub fn next_range_f64(&mut self, min: f64, max: f64) -> f64 {
         let rv = self.next_f64();
         rv.mul_add(max - min, min)
+    }
+
+    #[inline(always)]
+    fn next_f32_16(&mut self) -> [f32; 16] {
+        let mut u = [0.0; 16];
+        const INC: u64 = 0x60bee2bee120fc15;
+        const MASK: u64 = u64::MAX ^ 0xFFFF_FFFF_F800_0000;
+        let s = self.0;
+        for j in 0..16 {
+            let sj = s.wrapping_add(INC.wrapping_mul((j + 1) as u64));
+            let tmp = (sj as u128).wrapping_mul(0xa3b195354a39b70d);
+            let m1 = ((tmp.wrapping_shr(64)) as u64) ^ (tmp as u64);
+            let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
+            let rv = ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64);
+            u[j] = f32::from_bits(((rv & MASK) | 0x3F80_0000) as u32) - 1.0;
+        }
+        self.0 = s.wrapping_add(INC.wrapping_mul(16));
+        u
+    }
+
+    #[inline(always)]
+    fn next_f32_8(&mut self) -> [f32; 8] {
+        let mut u = [0.0; 8];
+        const INC: u64 = 0x60bee2bee120fc15;
+        const MASK: u64 = u64::MAX ^ 0xFFFF_FFFF_F800_0000;
+        let s = self.0;
+        for j in 0..8 {
+            let sj = s.wrapping_add(INC.wrapping_mul((j + 1) as u64));
+            let tmp = (sj as u128).wrapping_mul(0xa3b195354a39b70d);
+            let m1 = ((tmp.wrapping_shr(64)) as u64) ^ (tmp as u64);
+            let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
+            let rv = ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64);
+            u[j] = f32::from_bits(((rv & MASK) | 0x3F80_0000) as u32) - 1.0;
+        }
+        self.0 = s.wrapping_add(INC.wrapping_mul(8));
+        u
+    }
+
+    #[inline(always)]
+    fn next_f64_8(&mut self) -> [f64; 8] {
+        let mut u = [0.0; 8];
+        const INC: u64 = 0x60bee2bee120fc15;
+        let s = self.0;
+        for j in 0..8 {
+            let sj = s.wrapping_add(INC.wrapping_mul((j + 1) as u64));
+            let tmp = (sj as u128).wrapping_mul(0xa3b195354a39b70d);
+            let m1 = ((tmp.wrapping_shr(64)) as u64) ^ (tmp as u64);
+            let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
+            let rv = ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64);
+            let bits = (rv >> 12) | 0x3FF0_0000_0000_0000;
+            u[j] = f64::from_bits(bits) - 1.0;
+        }
+        self.0 = s.wrapping_add(INC.wrapping_mul(8));
+        u
+    }
+
+    #[inline(always)]
+    fn next_f64_4(&mut self) -> [f64; 4] {
+        let mut u = [0.0; 4];
+        const INC: u64 = 0x60bee2bee120fc15;
+        let s = self.0;
+        for j in 0..4 {
+            let sj = s.wrapping_add(INC.wrapping_mul((j + 1) as u64));
+            let tmp = (sj as u128).wrapping_mul(0xa3b195354a39b70d);
+            let m1 = ((tmp.wrapping_shr(64)) as u64) ^ (tmp as u64);
+            let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
+            let rv = ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64);
+            let bits = (rv >> 12) | 0x3FF0_0000_0000_0000;
+            u[j] = f64::from_bits(bits) - 1.0;
+        }
+        self.0 = s.wrapping_add(INC.wrapping_mul(4));
+        u
     }
 
     #[inline(always)]
@@ -506,11 +594,10 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_f32(&mut self, buf: &mut [f32]) {
-        let mut iter = buf.chunks_exact_mut(8);
+        let mut iter = buf.chunks_exact_mut(16);
         for chunk in iter.by_ref() {
-            for j in 0..8 {
-                chunk[j] = self.next_f32();
-            }
+            let u = self.next_f32_16();
+            chunk.copy_from_slice(&u);
         }
         for val in iter.into_remainder() {
             *val = self.next_f32();
@@ -519,11 +606,10 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_f64(&mut self, buf: &mut [f64]) {
-        let mut iter = buf.chunks_exact_mut(4);
+        let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
-            for j in 0..4 {
-                chunk[j] = self.next_f64();
-            }
+            let u = self.next_f64_8();
+            chunk.copy_from_slice(&u);
         }
         for val in iter.into_remainder() {
             *val = self.next_f64();
@@ -541,22 +627,25 @@ impl WyRand {
     {
         let limit = buf.len().min(min.len()).min(max.len());
         let (active, _) = buf.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
+        let mut iter = active.chunks_exact_mut(16);
+        
+        assert!(limit <= min.len());
+        assert!(limit <= max.len());
+
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 8;
-            let mut arr = [0.0; 8];
-            for j in 0..8 { arr[j] = self.next_f32(); }
+            let offset = i * 16;
+            let u = self.next_f32_16();
             
-            let min_arr = min.chunk::<8>(offset);
-            let max_arr = max.chunk::<8>(offset);
-            let mut diff_arr = [0.0; 8];
-            for j in 0..8 { diff_arr[j] = max_arr[j] - min_arr[j]; }
-            
-            let res = fptricks::batch_fmadd_cols_f32(arr, diff_arr, min_arr);
-            chunk.copy_from_slice(&res);
+            let mi1 = min.chunk::<16>(offset);
+            let ma1 = max.chunk::<16>(offset);
+
+            for j in 0..16 {
+                chunk[j] = mi1[j] + (1.0 - u[j]) * (ma1[j] - mi1[j]);
+            }
         }
+        
         let rem = iter.into_remainder();
-        let offset = (limit / 8) * 8;
+        let offset = (limit / 16) * 16;
         for (i, val) in rem.iter_mut().enumerate() {
             *val = self.next_range_f32(min.get(offset + i), max.get(offset + i));
         }
@@ -569,22 +658,25 @@ impl WyRand {
     {
         let limit = buf.len().min(min.len()).min(max.len());
         let (active, _) = buf.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(4);
+        let mut iter = active.chunks_exact_mut(8);
+        
+        assert!(limit <= min.len());
+        assert!(limit <= max.len());
+
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 4;
-            let mut arr = [0.0; 4];
-            for j in 0..4 { arr[j] = self.next_f64(); }
+            let offset = i * 8;
+            let u = self.next_f64_8();
             
-            let min_arr = min.chunk::<4>(offset);
-            let max_arr = max.chunk::<4>(offset);
-            let mut diff_arr = [0.0; 4];
-            for j in 0..4 { diff_arr[j] = max_arr[j] - min_arr[j]; }
-            
-            let res = fptricks::batch_fmadd_cols_f64(arr, diff_arr, min_arr);
-            chunk.copy_from_slice(&res);
+            let mi8 = min.chunk::<8>(offset);
+            let ma8 = max.chunk::<8>(offset);
+
+            for j in 0..8 {
+                chunk[j] = mi8[j] + (1.0 - u[j]) * (ma8[j] - mi8[j]);
+            }
         }
+        
         let rem = iter.into_remainder();
-        let offset = (limit / 4) * 4;
+        let offset = (limit / 8) * 8;
         for (i, val) in rem.iter_mut().enumerate() {
             *val = self.next_range_f64(min.get(offset + i), max.get(offset + i));
         }
@@ -596,11 +688,13 @@ impl WyRand {
     pub fn fill_gaussian_f32(&mut self, buf: &mut [f32]) {
         let mut iter = buf.chunks_exact_mut(16);
         for chunk in iter.by_ref() {
+            let u1_8 = self.next_f32_8();
+            let u2_8 = self.next_f32_8();
             let mut u1 = [0.0; 8];
             let mut u2 = [0.0; 8];
             for j in 0..8 {
-                u1[j] = 1.0 - self.next_f32();
-                u2[j] = 1.0 - self.next_f32();
+                u1[j] = 1.0 - u1_8[j];
+                u2[j] = 1.0 - u2_8[j];
             }
             let batch_ln = fptricks::batch_approx_ln_f32(u1);
             let r_input = fptricks::batch_fmadd_f32(batch_ln, -2.0, 0.0);
@@ -631,11 +725,13 @@ impl WyRand {
     pub fn fill_gaussian_f64(&mut self, buf: &mut [f64]) {
         let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
+            let u1_4 = self.next_f64_4();
+            let u2_4 = self.next_f64_4();
             let mut u1 = [0.0; 4];
             let mut u2 = [0.0; 4];
             for j in 0..4 {
-                u1[j] = 1.0 - self.next_f64();
-                u2[j] = 1.0 - self.next_f64();
+                u1[j] = 1.0 - u1_4[j];
+                u2[j] = 1.0 - u2_4[j];
             }
             let batch_ln = fptricks::batch_approx_ln_f64(u1);
             let r_input = fptricks::batch_fmadd_f64(batch_ln, -2.0, 0.0);
@@ -672,19 +768,50 @@ impl WyRand {
     {
         let limit = buf.len().min(mode.len()).min(sigma.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_gaussian_f32(active);
-        let mut iter = active.chunks_exact_mut(8);
+        let mut iter = active.chunks_exact_mut(16);
+        
+        assert!(limit <= mode.len());
+        assert!(limit <= sigma.len());
+
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 8;
-            let mut arr = [0.0; 8];
-            arr.copy_from_slice(chunk);
-            let res = fptricks::batch_fmadd_cols_f32(arr, sigma.chunk::<8>(offset), mode.chunk::<8>(offset));
-            chunk.copy_from_slice(&res);
+            let offset = i * 16;
+            let u1_8 = self.next_f32_8();
+            let u2_8 = self.next_f32_8();
+            
+            let mut u1 = [0.0; 8];
+            let mut u2 = [0.0; 8];
+            for j in 0..8 {
+                u1[j] = 1.0 - u1_8[j];
+                u2[j] = 1.0 - u2_8[j];
+            }
+            let batch_ln = fptricks::batch_approx_ln_f32(u1);
+            let r_input = fptricks::batch_fmadd_f32(batch_ln, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f32(r_input);
+            let u2_scaled = fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f32(u2_scaled);
+
+            let m1 = mode.chunk::<8>(offset);
+            let m2 = mode.chunk::<8>(offset + 8);
+            let s1 = sigma.chunk::<8>(offset);
+            let s2 = sigma.chunk::<8>(offset + 8);
+
+            for j in 0..8 {
+                chunk[j * 2] = m1[j] + r[j] * s[j] * s1[j];
+                chunk[j * 2 + 1] = m2[j] + r[j] * c[j] * s2[j];
+            }
         }
+        
         let rem = iter.into_remainder();
-        let offset = (limit / 8) * 8;
-        for (i, val) in rem.iter_mut().enumerate() {
-            *val = val.mul_add(sigma.get(offset + i), mode.get(offset + i));
+        let offset = (limit / 16) * 16;
+        let mut i = 0;
+        while i + 1 < rem.len() {
+            let (s, c) = self.next_gaussian_pair_f32();
+            rem[i] = mode.get(offset + i) + s * sigma.get(offset + i);
+            rem[i + 1] = mode.get(offset + i + 1) + c * sigma.get(offset + i + 1);
+            i += 2;
+        }
+        if i < rem.len() {
+            rem[i] = self.next_gaussian_f32().mul_add(sigma.get(offset + i), mode.get(offset + i));
         }
     }
 
@@ -695,19 +822,50 @@ impl WyRand {
     {
         let limit = buf.len().min(mode.len()).min(sigma.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_gaussian_f64(active);
-        let mut iter = active.chunks_exact_mut(4);
+        let mut iter = active.chunks_exact_mut(8);
+        
+        assert!(limit <= mode.len());
+        assert!(limit <= sigma.len());
+
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 4;
-            let mut arr = [0.0; 4];
-            arr.copy_from_slice(chunk);
-            let res = fptricks::batch_fmadd_cols_f64(arr, sigma.chunk::<4>(offset), mode.chunk::<4>(offset));
-            chunk.copy_from_slice(&res);
+            let offset = i * 8;
+            let u1_4 = self.next_f64_4();
+            let u2_4 = self.next_f64_4();
+            
+            let mut u1 = [0.0; 4];
+            let mut u2 = [0.0; 4];
+            for j in 0..4 {
+                u1[j] = 1.0 - u1_4[j];
+                u2[j] = 1.0 - u2_4[j];
+            }
+            let batch_ln = fptricks::batch_approx_ln_f64(u1);
+            let r_input = fptricks::batch_fmadd_f64(batch_ln, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f64(r_input);
+            let u2_scaled = fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f64(u2_scaled);
+
+            let m1 = mode.chunk::<4>(offset);
+            let m2 = mode.chunk::<4>(offset + 4);
+            let s1 = sigma.chunk::<4>(offset);
+            let s2 = sigma.chunk::<4>(offset + 4);
+
+            for j in 0..4 {
+                chunk[j * 2] = m1[j] + r[j] * s[j] * s1[j];
+                chunk[j * 2 + 1] = m2[j] + r[j] * c[j] * s2[j];
+            }
         }
+        
         let rem = iter.into_remainder();
-        let offset = (limit / 4) * 4;
-        for (i, val) in rem.iter_mut().enumerate() {
-            *val = val.mul_add(sigma.get(offset + i), mode.get(offset + i));
+        let offset = (limit / 8) * 8;
+        let mut i = 0;
+        while i + 1 < rem.len() {
+            let (s, c) = self.next_gaussian_pair_f64();
+            rem[i] = mode.get(offset + i) + s * sigma.get(offset + i);
+            rem[i + 1] = mode.get(offset + i + 1) + c * sigma.get(offset + i + 1);
+            i += 2;
+        }
+        if i < rem.len() {
+            rem[i] = self.next_gaussian_f64().mul_add(sigma.get(offset + i), mode.get(offset + i));
         }
     }
 
@@ -777,27 +935,55 @@ impl WyRand {
     {
         let limit = buf.len().min(mode.len()).min(sigma_lo.len()).min(sigma_hi.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_gaussian_f32(active);
-        let mut iter = active.chunks_exact_mut(8);
+        let mut iter = active.chunks_exact_mut(16);
+        
+        assert!(limit <= mode.len());
+        assert!(limit <= sigma_lo.len());
+        assert!(limit <= sigma_hi.len());
+
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 8;
-            let mut arr = [0.0; 8];
-            arr.copy_from_slice(chunk);
-            let res = fptricks::batch_asymmetric_fma_cols_f32(arr, mode.chunk::<8>(offset), 
-                sigma_lo.chunk::<8>(offset), sigma_hi.chunk::<8>(offset));
-            chunk.copy_from_slice(&res);
+            let offset = i * 16;
+            let u1_8 = self.next_f32_8();
+            let u2_8 = self.next_f32_8();
+            
+            let mut u1 = [0.0; 8];
+            let mut u2 = [0.0; 8];
+            for j in 0..8 {
+                u1[j] = 1.0 - u1_8[j];
+                u2[j] = 1.0 - u2_8[j];
+            }
+            let bl = fptricks::batch_approx_ln_f32(u1);
+            let ri = fptricks::batch_fmadd_f32(bl, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f32(ri);
+            let u2s = fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f32(u2s);
+
+            let m1 = mode.chunk::<8>(offset);
+            let m2 = mode.chunk::<8>(offset + 8);
+            let sl1 = sigma_lo.chunk::<8>(offset);
+            let sl2 = sigma_lo.chunk::<8>(offset + 8);
+            let sh1 = sigma_hi.chunk::<8>(offset);
+            let sh2 = sigma_hi.chunk::<8>(offset + 8);
+
+            for j in 0..8 {
+                let x = r[j] * s[j];
+                let m = m1[j];
+                chunk[j * 2] = if x < 0.0 { m + x * sl1[j] } else { m + x * sh1[j] };
+                
+                let x2 = r[j] * c[j];
+                let m2v = m2[j];
+                chunk[j * 2 + 1] = if x2 < 0.0 { m2v + x2 * sl2[j] } else { m2v + x2 * sh2[j] };
+            }
         }
+        
         let rem = iter.into_remainder();
-        let offset = (limit / 8) * 8;
+        let offset = (limit / 16) * 16;
         for (i, val) in rem.iter_mut().enumerate() {
-            let sig_lo = sigma_lo.get(offset + i);
-            let sig_hi = sigma_hi.get(offset + i);
-            let sig_lo_bits = sig_lo.to_bits();
-            let sig_hi_bits = sig_hi.to_bits();
-            let zlt_mask: u32 = ((*val < 0.0) as u32).wrapping_neg();
-            let zgeq_mask: u32 = ((*val >= 0.0) as u32).wrapping_neg();
-            let sigma = (sig_lo_bits & zlt_mask) | (sig_hi_bits & zgeq_mask);
-            *val = val.mul_add(f32::from_bits(sigma), mode.get(offset + i));
+            let x = self.next_gaussian_f32();
+            let m = mode.get(offset + i);
+            let s_lo = sigma_lo.get(offset + i);
+            let s_hi = sigma_hi.get(offset + i);
+            *val = if x < 0.0 { m + x * s_lo } else { m + x * s_hi };
         }
     }
 
