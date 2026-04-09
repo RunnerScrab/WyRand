@@ -541,6 +541,100 @@ impl WyRand {
             *val = val.mul_add(f64::from_bits(sigma), mode.get(offset + i));
         }
     }
+
+    #[inline]
+    pub fn fill_split_normal_from_table_f32<M, T>(&mut self, buf: &mut [f32], mode: M, table: T)
+    where
+        M: ParamSource<f32>,
+        T: ParamSource<(f32, f32)>,
+    {
+        let limit = buf.len().min(mode.len()).min(table.len());
+        let (active, _) = buf.split_at_mut(limit);
+        let mut iter = active.chunks_exact_mut(16);
+        
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i << 4;
+            let u1_8 = self.next_f32_8();
+            let u2_8 = self.next_f32_8();
+            
+            let mut u1 = [0.0; 8];
+            let mut u2 = [0.0; 8];
+            for j in 0..8 {
+                u1[j] = 1.0 - u1_8[j];
+                u2[j] = 1.0 - u2_8[j];
+            }
+            let bl = fptricks::batch_approx_ln_f32(u1);
+            let ri = fptricks::batch_fmadd_f32(bl, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f32(ri);
+            let u2s = fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f32(u2s);
+
+            let m1 = mode.chunk::<8>(offset);
+            let m2 = mode.chunk::<8>(offset + 8);
+            let sigs1 = table.chunk::<8>(offset);
+            let sigs2 = table.chunk::<8>(offset + 8);
+
+            for j in 0..8 {
+                let x = r[j] * s[j];
+                let (sl1, sh1) = sigs1[j];
+                chunk[j << 1] = if x < 0.0 { m1[j] + x * sl1 } else { m1[j] + x * sh1 };
+                
+                let x2 = r[j] * c[j];
+                let (sl2, sh2) = sigs2[j];
+                chunk[(j << 1) + 1] = if x2 < 0.0 { m2[j] + x2 * sl2 } else { m2[j] + x2 * sh2 };
+            }
+        }
+        
+        let rem = iter.into_remainder();
+        let offset = limit & !15;
+        for (i, val) in rem.iter_mut().enumerate() {
+            let x = self.next_std_normal_f32();
+            let m = mode.get(offset + i);
+            let (s_lo, s_hi) = table.get(offset + i);
+            *val = if x < 0.0 { m + x * s_lo } else { m + x * s_hi };
+        }
+    }
+
+    #[inline]
+    pub fn fill_split_normal_from_table_f64<M, T>(&mut self, buf: &mut [f64], mode: M, table: T)
+    where
+        M: ParamSource<f64>,
+        T: ParamSource<(f64, f64)>,
+    {
+        let limit = buf.len().min(mode.len()).min(table.len());
+        let (active, _) = buf.split_at_mut(limit);
+        self.fill_std_normal_f64(active);
+        let mut iter = active.chunks_exact_mut(4);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i << 2;
+            let mut arr = [0.0; 4];
+            arr.copy_from_slice(chunk);
+            
+            let modes = mode.chunk::<4>(offset);
+            let sigs = table.chunk::<4>(offset);
+            
+            let mut sl = [0.0; 4];
+            let mut sh = [0.0; 4];
+            for j in 0..4 {
+                sl[j] = sigs[j].0;
+                sh[j] = sigs[j].1;
+            }
+
+            let res = fptricks::batch_asymmetric_fma_cols_f64(arr, modes, sl, sh);
+            chunk.copy_from_slice(&res);
+        }
+        let rem = iter.into_remainder();
+        let offset = limit & !3;
+        for (i, val) in rem.iter_mut().enumerate() {
+            let (sig_lo, sig_hi) = table.get(offset + i);
+            let sig_lo_bits = sig_lo.to_bits();
+            let sig_hi_bits = sig_hi.to_bits();
+            let zlt_mask: u64 = ((*val < 0.0) as u64).wrapping_neg();
+            let zgeq_mask: u64 = ((*val >= 0.0) as u64).wrapping_neg();
+            let sigma = (sig_lo_bits & zlt_mask) | (sig_hi_bits & zgeq_mask);
+            *val = val.mul_add(f64::from_bits(sigma), mode.get(offset + i));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -621,5 +715,56 @@ mod tests {
         let var = sum_sq / n as f64 - mean * mean;
         assert!(mean.abs() < 0.1);
         assert!((var - 1.0).abs() < 0.15);
+    }
+
+    #[test]
+    fn test_split_normal_table_correctness() {
+        let mut rng = WyRand::new(1);
+        let n = 1024;
+        let mut buf = vec![0.0f32; n];
+        let mode = 0.0;
+        let table = vec![(1.0, 2.0); n]; // lo=1.0, hi=2.0
+        
+        rng.fill_split_normal_from_table_f32(&mut buf, mode, &table);
+        
+        for &val in &buf {
+            // Standard normal x. If x < 0, val = m + x * lo. If x >= 0, val = m + x * hi.
+            // Since mode=0, val = x * lo or x * hi. 
+            // So x = val/lo if val < 0, x = val/hi if val >= 0.
+            // We can't perfectly reconstruct x, but we can verify bounds/stats if we had a lot,
+            // or just check that it's using the parameters.
+            if val < 0.0 {
+                // val should be ~ x * 1.0 (mean 0, var 1)
+            } else {
+                // val should be ~ x * 2.0 (mean 0, var 4)
+            }
+        }
+        
+        // Simple statistical check
+        let mut sum_lo = 0.0;
+        let mut count_lo = 0;
+        let mut sum_hi = 0.0;
+        let mut count_hi = 0;
+        for &val in &buf {
+            if val < 0.0 {
+                sum_lo += val;
+                count_lo += 1;
+            } else {
+                sum_hi += val;
+                count_hi += 1;
+            }
+        }
+        
+        // Expected mean of half-normal |N(0,1)| is sqrt(2/pi) approx 0.8
+        // For lo=1.0, expected mean of negative half is -0.8
+        // For hi=2.0, expected mean of positive half is 1.6
+        if count_lo > 0 {
+            let mean_lo = sum_lo / count_lo as f32;
+            assert!(mean_lo < -0.5 && mean_lo > -1.1);
+        }
+        if count_hi > 0 {
+            let mean_hi = sum_hi / count_hi as f32;
+            assert!(mean_hi > 1.2 && mean_hi < 2.0);
+        }
     }
 }
