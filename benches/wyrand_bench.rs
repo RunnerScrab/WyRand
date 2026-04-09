@@ -172,6 +172,30 @@ fn bench_f32_beta(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_f32_poisson(c: &mut Criterion) {
+    let mut group = c.benchmark_group("f32_poisson");
+    let lambda = 5.0;
+    group.bench_function("scalar", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            for val in buf.iter_mut() {
+                *val = rng.next_poisson_u32(lambda);
+            }
+            black_box(&buf);
+        })
+    });
+    group.bench_function("bulk_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            rng.fill_poisson_u32(&mut buf, lambda);
+            black_box(&buf);
+        })
+    });
+    group.finish();
+}
+
 fn bench_f64_uniform(c: &mut Criterion) {
     let mut group = c.benchmark_group("f64_uniform");
     group.bench_function("scalar", |b| {
@@ -248,6 +272,30 @@ fn bench_f32_normal_cols(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_f64_poisson(c: &mut Criterion) {
+    let mut group = c.benchmark_group("f64_poisson");
+    let lambda = 5.0;
+    group.bench_function("scalar", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            for val in buf.iter_mut() {
+                *val = rng.next_poisson_f64_u32(lambda);
+            }
+            black_box(&buf);
+        })
+    });
+    group.bench_function("bulk_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            rng.fill_poisson_f64_u32(&mut buf, lambda);
+            black_box(&buf);
+        })
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_f32_uniform,
@@ -260,6 +308,8 @@ criterion_group!(
     bench_f64_rayleigh,
     bench_f32_beta,
     bench_f32_rayleigh_cols,
-    bench_f32_normal_cols
+    bench_f32_normal_cols,
+    bench_f32_poisson,
+    bench_f64_poisson
 );
 criterion_main!(benches);
