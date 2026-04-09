@@ -6,3 +6,9 @@ edition = "2024"
 [dependencies]
 fptricks = {git = "https://github.com/RunnerScrab/fptricks.git"}
 
+[dev-dependencies]
+criterion = "0.5.1"
+
+[[bench]]
+name = "wyrand_bench"
+harness = false

@@ -91,7 +91,6 @@ impl WyRand {
     #[inline(always)]
     pub fn next_gaussian_f32(&mut self) -> f32 {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
-        let rv: u64 = self.next_u64();
         let u1 = 1.0 - self.next_f32();
         let u2 = 1.0 - self.next_f32();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
@@ -106,8 +105,28 @@ impl WyRand {
         let u1 = 1.0 - self.next_f64();
         let u2 = 1.0 - self.next_f64();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
-        //r * (Self::TWO_PI_F64 * u1).sin()
+        //r * (Self::TWO_PI_F64 * u2).sin()
         r * (Self::TWO_PI_F64 * u2).approx_cos()
+    }
+
+    // Generates a pair of independent standard normal random variables
+    // (mean=0, std_dev=1) using the Box-Muller transform
+    pub fn next_gaussian_pair_f32(&mut self) -> (f32, f32) {
+        let u1 = 1.0 - self.next_f32();
+        let u2 = 1.0 - self.next_f32();
+        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let (s, c) = (Self::TWO_PI_F32 * u2).approx_sin_cos();
+        (r * s, r * c)
+    }
+
+    // Generates a pair of independent standard normal random variables
+    // (mean=0, std_dev=1) using the Box-Muller transform
+    pub fn next_gaussian_pair_f64(&mut self) -> (f64, f64) {
+        let u1 = 1.0 - self.next_f64();
+        let u2 = 1.0 - self.next_f64();
+        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let (s, c) = (Self::TWO_PI_F64 * u2).approx_sin_cos();
+        (r * s, r * c)
     }
 
     // Symmetric uncertainty: returns a value shifted by a Gaussian distribution.
@@ -307,6 +326,362 @@ impl WyRand {
     pub fn next_chi_squared_f64(&mut self, k: f64) -> f64 {
         self.next_gamma_f64(k * 0.5).fast_mul2()
     }
+
+    // --- BULK GENERATORS ---
+
+    #[inline(always)]
+    pub fn fill_f32(&mut self, buf: &mut [f32]) {
+        for val in buf.iter_mut() {
+            *val = self.next_f32();
+        }
+    }
+
+    #[inline(always)]
+    pub fn fill_f64(&mut self, buf: &mut [f64]) {
+        for val in buf.iter_mut() {
+            *val = self.next_f64();
+        }
+    }
+
+    #[inline(always)]
+    pub fn fill_f32_in_range(&mut self, buf: &mut [f32], min: f32, max: f32) {
+        let diff = max - min;
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 8];
+            for j in 0..8 {
+                arr[j] = self.next_f32();
+            }
+            let res = fptricks::batch_fmadd_f32(arr, diff, min);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = self.next_f32_in_range(min, max);
+        }
+    }
+
+    #[inline(always)]
+    pub fn fill_f64_in_range(&mut self, buf: &mut [f64], min: f64, max: f64) {
+        let diff = max - min;
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 4];
+            for j in 0..4 {
+                arr[j] = self.next_f64();
+            }
+            let res = fptricks::batch_fmadd_f64(arr, diff, min);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = self.next_f64_in_range(min, max);
+        }
+    }
+
+    // Generates Box-Muller normal variables in bulk using SIMD batches.
+    // Extremely fast: processes 8 sines and 8 cosines per 16 iterations.
+    pub fn fill_gaussian_f32(&mut self, buf: &mut [f32]) {
+        let mut iter = buf.chunks_exact_mut(16);
+        for chunk in iter.by_ref() {
+            let mut u1 = [0.0; 8];
+            let mut u2 = [0.0; 8];
+            for j in 0..8 {
+                u1[j] = 1.0 - self.next_f32();
+                u2[j] = 1.0 - self.next_f32();
+            }
+            let batch_ln = fptricks::batch_approx_ln_f32(u1);
+            let r_input = fptricks::batch_fmadd_f32(batch_ln, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f32(r_input);
+
+            let u2_scaled = fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f32(u2_scaled);
+
+            for j in 0..8 {
+                chunk[j * 2] = r[j] * s[j];
+                chunk[j * 2 + 1] = r[j] * c[j];
+            }
+        }
+        
+        let remainder = iter.into_remainder();
+        let mut i = 0;
+        while i + 1 < remainder.len() {
+            let (s, c) = self.next_gaussian_pair_f32();
+            remainder[i] = s;
+            remainder[i + 1] = c;
+            i += 2;
+        }
+        if i < remainder.len() {
+            remainder[i] = self.next_gaussian_f32();
+        }
+    }
+
+    pub fn fill_gaussian_f64(&mut self, buf: &mut [f64]) {
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut u1 = [0.0; 4];
+            let mut u2 = [0.0; 4];
+            for j in 0..4 {
+                u1[j] = 1.0 - self.next_f64();
+                u2[j] = 1.0 - self.next_f64();
+            }
+            let batch_ln = fptricks::batch_approx_ln_f64(u1);
+            let r_input = fptricks::batch_fmadd_f64(batch_ln, -2.0, 0.0);
+            let r = fptricks::batch_approx_sqrt_f64(r_input);
+
+            let u2_scaled = fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0);
+            let (s, c) = fptricks::batch_approx_sin_cos_f64(u2_scaled);
+
+            for j in 0..4 {
+                chunk[j * 2] = r[j] * s[j];
+                chunk[j * 2 + 1] = r[j] * c[j];
+            }
+        }
+        
+        let remainder = iter.into_remainder();
+        let mut i = 0;
+        while i + 1 < remainder.len() {
+            let (s, c) = self.next_gaussian_pair_f64();
+            remainder[i] = s;
+            remainder[i + 1] = c;
+            i += 2;
+        }
+        if i < remainder.len() {
+            remainder[i] = self.next_gaussian_f64();
+        }
+    }
+
+    pub fn fill_symmetric_uncertainty_f32(&mut self, buf: &mut [f32], mode: f32, sigma: f32) {
+        self.fill_gaussian_f32(buf);
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 8];
+            arr.copy_from_slice(chunk);
+            let res = fptricks::batch_fmadd_f32(arr, sigma, mode);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.mul_add(sigma, mode);
+        }
+    }
+
+    pub fn fill_symmetric_uncertainty_f64(&mut self, buf: &mut [f64], mode: f64, sigma: f64) {
+        self.fill_gaussian_f64(buf);
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 4];
+            arr.copy_from_slice(chunk);
+            let res = fptricks::batch_fmadd_f64(arr, sigma, mode);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.mul_add(sigma, mode);
+        }
+    }
+
+    pub fn fill_clamped_symmetric_uncertainty_f32(&mut self, buf: &mut [f32], mode: f32, sigma: f32, limit: f32) {
+        self.fill_gaussian_f32(buf);
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 8];
+            arr.copy_from_slice(chunk);
+            for j in 0..8 {
+                arr[j] = arr[j].clamp(-limit, limit);
+            }
+            let res = fptricks::batch_fmadd_f32(arr, sigma, mode);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.clamp(-limit, limit).mul_add(sigma, mode);
+        }
+    }
+
+    pub fn fill_clamped_symmetric_uncertainty_f64(&mut self, buf: &mut [f64], mode: f64, sigma: f64, limit: f64) {
+        self.fill_gaussian_f64(buf);
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 4];
+            arr.copy_from_slice(chunk);
+            for j in 0..4 {
+                arr[j] = arr[j].clamp(-limit, limit);
+            }
+            let res = fptricks::batch_fmadd_f64(arr, sigma, mode);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.clamp(-limit, limit).mul_add(sigma, mode);
+        }
+    }
+
+    pub fn fill_asymmetric_uncertainty_f32(&mut self, buf: &mut [f32], mode: f32, sigma_low_mag: f32, sigma_high_mag: f32) {
+        self.fill_gaussian_f32(buf);
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 8];
+            arr.copy_from_slice(chunk);
+            let res = fptricks::batch_asymmetric_fma_f32(arr, mode, sigma_low_mag, sigma_high_mag);
+            chunk.copy_from_slice(&res);
+        }
+        let sig_lo_bits = sigma_low_mag.to_bits();
+        let sig_hi_bits = sigma_high_mag.to_bits();
+        for z in iter.into_remainder() {
+            let zlt_mask: u32 = ((*z < 0.0) as u32).wrapping_neg();
+            let zgeq_mask: u32 = ((*z >= 0.0) as u32).wrapping_neg();
+            let sigma = (sig_lo_bits & zlt_mask) | (sig_hi_bits & zgeq_mask);
+            *z = z.mul_add(f32::from_bits(sigma), mode);
+        }
+    }
+
+    pub fn fill_asymmetric_uncertainty_f64(&mut self, buf: &mut [f64], mode: f64, sigma_low_mag: f64, sigma_high_mag: f64) {
+        self.fill_gaussian_f64(buf);
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut arr = [0.0; 4];
+            arr.copy_from_slice(chunk);
+            let res = fptricks::batch_asymmetric_fma_f64(arr, mode, sigma_low_mag, sigma_high_mag);
+            chunk.copy_from_slice(&res);
+        }
+        let sig_lo_bits = sigma_low_mag.to_bits();
+        let sig_hi_bits = sigma_high_mag.to_bits();
+        for z in iter.into_remainder() {
+            let zlt_mask: u64 = ((*z < 0.0) as u64).wrapping_neg();
+            let zgeq_mask: u64 = ((*z >= 0.0) as u64).wrapping_neg();
+            let sigma = (sig_lo_bits & zlt_mask) | (sig_hi_bits & zgeq_mask);
+            *z = z.mul_add(f64::from_bits(sigma), mode);
+        }
+    }
+
+    pub fn fill_ln_symmetric_f32(&mut self, buf: &mut [f32], ln_mode: f32, sigma_ln: f32) {
+        self.fill_symmetric_uncertainty_f32(buf, ln_mode, sigma_ln);
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut exponents = [0.0; 8];
+            exponents.copy_from_slice(chunk);
+            let res = fptricks::batch_approx_exp_f32(exponents);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.approx_exp();
+        }
+    }
+
+    pub fn fill_ln_symmetric_f64(&mut self, buf: &mut [f64], ln_mode: f64, sigma_ln: f64) {
+        self.fill_symmetric_uncertainty_f64(buf, ln_mode, sigma_ln);
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut exponents = [0.0; 4];
+            exponents.copy_from_slice(chunk);
+            let res = fptricks::batch_approx_exp_f64(exponents);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = val.approx_exp();
+        }
+    }
+
+    pub fn fill_log_symmetric_f32(&mut self, buf: &mut [f32], log_mode: f32, sigma_log: f32) {
+        self.fill_symmetric_uncertainty_f32(buf, log_mode, sigma_log);
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut exponents = [0.0; 8];
+            exponents.copy_from_slice(chunk);
+            let res = fptricks::batch_approx_powf_f32(10.0, exponents);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = 10.0_f32.powf(*val);
+        }
+    }
+
+    pub fn fill_log_symmetric_f64(&mut self, buf: &mut [f64], log_mode: f64, sigma_log: f64) {
+        self.fill_symmetric_uncertainty_f64(buf, log_mode, sigma_log);
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            let mut exponents = [0.0; 4];
+            exponents.copy_from_slice(chunk);
+            let res = fptricks::batch_approx_powf_f64(10.0, exponents);
+            chunk.copy_from_slice(&res);
+        }
+        for val in iter.into_remainder() {
+            *val = 10.0_f64.powf(*val);
+        }
+    }
+
+    pub fn fill_rayleigh_f32(&mut self, buf: &mut [f32], sigma: f32) {
+        let neg_two_sigma_sq = -2.0 * sigma * sigma;
+        let mut iter = buf.chunks_exact_mut(16);
+        for chunk in iter.by_ref() {
+            let mut u1 = [0.0; 8];
+            let mut u2 = [0.0; 8];
+            for j in 0..8 {
+                u1[j] = 1.0 - self.next_f32();
+                u2[j] = 1.0 - self.next_f32();
+            }
+            let ln1 = fptricks::batch_approx_ln_f32(u1);
+            let ln2 = fptricks::batch_approx_ln_f32(u2);
+            
+            let r_in1 = fptricks::batch_fmadd_f32(ln1, neg_two_sigma_sq, 0.0);
+            let r_in2 = fptricks::batch_fmadd_f32(ln2, neg_two_sigma_sq, 0.0);
+            
+            let r1 = fptricks::batch_approx_sqrt_f32(r_in1);
+            let r2 = fptricks::batch_approx_sqrt_f32(r_in2);
+            
+            chunk[0..8].copy_from_slice(&r1);
+            chunk[8..16].copy_from_slice(&r2);
+        }
+        for val in iter.into_remainder() {
+            *val = self.next_rayleigh_f32(sigma);
+        }
+    }
+
+    pub fn fill_rayleigh_f64(&mut self, buf: &mut [f64], sigma: f64) {
+        let neg_two_sigma_sq = -2.0 * sigma * sigma;
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            let mut u1 = [0.0; 4];
+            let mut u2 = [0.0; 4];
+            for j in 0..4 {
+                u1[j] = 1.0 - self.next_f64();
+                u2[j] = 1.0 - self.next_f64();
+            }
+            let ln1 = fptricks::batch_approx_ln_f64(u1);
+            let ln2 = fptricks::batch_approx_ln_f64(u2);
+            
+            let r_in1 = fptricks::batch_fmadd_f64(ln1, neg_two_sigma_sq, 0.0);
+            let r_in2 = fptricks::batch_fmadd_f64(ln2, neg_two_sigma_sq, 0.0);
+            
+            let r1 = fptricks::batch_approx_sqrt_f64(r_in1);
+            let r2 = fptricks::batch_approx_sqrt_f64(r_in2);
+            
+            chunk[0..4].copy_from_slice(&r1);
+            chunk[4..8].copy_from_slice(&r2);
+        }
+        for val in iter.into_remainder() {
+            *val = self.next_rayleigh_f64(sigma);
+        }
+    }
+
+    pub fn fill_gamma_f32(&mut self, buf: &mut [f32], alpha: f32) {
+        for val in buf.iter_mut() { *val = self.next_gamma_f32(alpha); }
+    }
+
+    pub fn fill_gamma_f64(&mut self, buf: &mut [f64], alpha: f64) {
+        for val in buf.iter_mut() { *val = self.next_gamma_f64(alpha); }
+    }
+
+    pub fn fill_beta_f32(&mut self, buf: &mut [f32], alpha: f32, beta: f32) {
+        for val in buf.iter_mut() { *val = self.next_beta_f32(alpha, beta); }
+    }
+
+    pub fn fill_beta_f64(&mut self, buf: &mut [f64], alpha: f64, beta: f64) {
+        for val in buf.iter_mut() { *val = self.next_beta_f64(alpha, beta); }
+    }
+
+    pub fn fill_chi_squared_f32(&mut self, buf: &mut [f32], k: f32) {
+        for val in buf.iter_mut() { *val = self.next_chi_squared_f32(k); }
+    }
+
+    pub fn fill_chi_squared_f64(&mut self, buf: &mut [f64], k: f64) {
+        for val in buf.iter_mut() { *val = self.next_chi_squared_f64(k); }
+    }
 }
 
 #[cfg(test)]
@@ -358,6 +733,60 @@ mod test {
         println!("Gaussian f64 | mean: {}, var: {}", mean, var);
         assert!(mean.abs() < 0.1);
         assert!((var - 1.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_gaussian_pair_stats() {
+        let mut rng = WyRand::new(1);
+        let n = 100_000;
+
+        let mut sum_s = 0.0;
+        let mut sum_c = 0.0;
+        let mut sum_sq_s = 0.0;
+        let mut sum_sq_c = 0.0;
+
+        for _ in 0..n {
+            let (s, c) = rng.next_gaussian_pair_f32();
+            sum_s += s as f64;
+            sum_c += c as f64;
+            sum_sq_s += (s * s) as f64;
+            sum_sq_c += (c * c) as f64;
+        }
+
+        let mean_s = sum_s / n as f64;
+        let var_s = sum_sq_s / n as f64 - mean_s * mean_s;
+        let mean_c = sum_c / n as f64;
+        let var_c = sum_sq_c / n as f64 - mean_c * mean_c;
+
+        println!("Gaussian Pair f32 | mean_s: {}, var_s: {}, mean_c: {}, var_c: {}", mean_s, var_s, mean_c, var_c);
+        assert!(mean_s.abs() < 0.1);
+        assert!((var_s - 1.0).abs() < 0.15);
+        assert!(mean_c.abs() < 0.1);
+        assert!((var_c - 1.0).abs() < 0.15);
+
+        let mut sum_s = 0.0;
+        let mut sum_c = 0.0;
+        let mut sum_sq_s = 0.0;
+        let mut sum_sq_c = 0.0;
+
+        for _ in 0..n {
+            let (s, c) = rng.next_gaussian_pair_f64();
+            sum_s += s;
+            sum_c += c;
+            sum_sq_s += s * s;
+            sum_sq_c += c * c;
+        }
+
+        let mean_s = sum_s / n as f64;
+        let var_s = sum_sq_s / n as f64 - mean_s * mean_s;
+        let mean_c = sum_c / n as f64;
+        let var_c = sum_sq_c / n as f64 - mean_c * mean_c;
+
+        println!("Gaussian Pair f64 | mean_s: {}, var_s: {}, mean_c: {}, var_c: {}", mean_s, var_s, mean_c, var_c);
+        assert!(mean_s.abs() < 0.1);
+        assert!((var_s - 1.0).abs() < 0.1);
+        assert!(mean_c.abs() < 0.1);
+        assert!((var_c - 1.0).abs() < 0.1);
     }
 
     #[test]
@@ -419,5 +848,51 @@ mod test {
         println!("Rayleigh f64 | mean: {}, var: {}", mean, var);
         assert!((mean - expected_mean).abs() < 0.1);
         assert!((var - expected_var).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_batch_fill_gaussian() {
+        let mut rng = WyRand::new(1);
+        let n = 100_000;
+        let mut buf = vec![0.0f32; n];
+        rng.fill_gaussian_f32(&mut buf);
+        
+        let mut sum = 0.0;
+        let mut sum_sq = 0.0;
+        for &val in &buf {
+            sum += val as f64;
+            sum_sq += (val * val) as f64;
+        }
+        let mean = sum / n as f64;
+        let var = sum_sq / n as f64 - mean * mean;
+        println!("Bulk Gaussian f32 | mean: {}, var: {}", mean, var);
+        assert!(mean.abs() < 0.1);
+        assert!((var - 1.0).abs() < 0.15);
+    }
+
+    #[test]
+    fn test_batch_fill_rayleigh() {
+        let mut rng = WyRand::new(1);
+        let n = 100_000;
+        let sigma = 2.0;
+        let mut buf = vec![0.0f32; n];
+        rng.fill_rayleigh_f32(&mut buf, sigma);
+        
+        let mut sum = 0.0;
+        let mut sum_sq = 0.0;
+        for &val in &buf {
+            sum += val as f64;
+            sum_sq += (val * val) as f64;
+        }
+        let mean = sum / n as f64;
+        let var = sum_sq / n as f64 - mean * mean;
+        
+        let pi = std::f64::consts::PI;
+        let expected_mean = (sigma as f64) * (pi / 2.0).sqrt();
+        let expected_var = (4.0 - pi) / 2.0 * (sigma as f64) * (sigma as f64);
+        
+        println!("Bulk Rayleigh f32 | mean: {}, var: {}", mean, var);
+        assert!((mean - expected_mean).abs() < 0.15);
+        assert!((var - expected_var).abs() < 0.15);
     }
 }
