@@ -3,7 +3,7 @@ use fptricks::*;
 /// A trait for types that can provide SIMD chunks of parameters.
 /// 
 /// This trait is implemented for scalars (providing a broadcasted chunk) and
-/// slices/vectors (providing a direct memory load).
+/// slices/vectors/arrays (providing a direct memory load).
 pub trait ParamSource<T: Copy>: Copy {
     /// Returns the length of the source. Scalars return usize::MAX.
     fn len(&self) -> usize;
@@ -29,9 +29,11 @@ impl<'a> ParamSource<f32> for &'a [f32] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
-        let src = &self[offset..];
-        let take = N.min(src.len());
-        arr[..take].copy_from_slice(&src[..take]);
+        if offset < self.len() {
+            let src = &self[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
         arr
     }
     #[inline(always)]
@@ -40,13 +42,33 @@ impl<'a> ParamSource<f32> for &'a [f32] {
 
 impl<'a> ParamSource<f32> for &'a Vec<f32> {
     #[inline(always)]
-    fn len(&self) -> usize { self.as_slice().len() }
+    fn len(&self) -> usize { (**self).len() }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
-        let src = &self.as_slice()[offset..];
-        let take = N.min(src.len());
-        arr[..take].copy_from_slice(&src[..take]);
+        let slice = self.as_slice();
+        if offset < slice.len() {
+            let src = &slice[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
+        arr
+    }
+    #[inline(always)]
+    fn get(&self, idx: usize) -> f32 { self[idx] }
+}
+
+impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
+    #[inline(always)]
+    fn len(&self) -> usize { LANES }
+    #[inline(always)]
+    fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
+        let mut arr = [0.0; N];
+        if offset < LANES {
+            let src = &self[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
         arr
     }
     #[inline(always)]
@@ -68,9 +90,11 @@ impl<'a> ParamSource<f64> for &'a [f64] {
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
-        let src = &self[offset..];
-        let take = N.min(src.len());
-        arr[..take].copy_from_slice(&src[..take]);
+        if offset < self.len() {
+            let src = &self[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
         arr
     }
     #[inline(always)]
@@ -79,18 +103,39 @@ impl<'a> ParamSource<f64> for &'a [f64] {
 
 impl<'a> ParamSource<f64> for &'a Vec<f64> {
     #[inline(always)]
-    fn len(&self) -> usize { self.as_slice().len() }
+    fn len(&self) -> usize { (**self).len() }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
-        let src = &self.as_slice()[offset..];
-        let take = N.min(src.len());
-        arr[..take].copy_from_slice(&src[..take]);
+        let slice = self.as_slice();
+        if offset < slice.len() {
+            let src = &slice[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
         arr
     }
     #[inline(always)]
     fn get(&self, idx: usize) -> f64 { self[idx] }
 }
+
+impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
+    #[inline(always)]
+    fn len(&self) -> usize { LANES }
+    #[inline(always)]
+    fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
+        let mut arr = [0.0; N];
+        if offset < LANES {
+            let src = &self[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
+        arr
+    }
+    #[inline(always)]
+    fn get(&self, idx: usize) -> f64 { self[idx] }
+}
+
 
 
 /// WyRand is a high-performance, non-cryptographic random number generator
@@ -162,9 +207,7 @@ impl WyRand {
         ((tmp2.wrapping_shr(64)) as u64) ^ (tmp2 as u64)
     }
 
-    fn next_u32(&mut self) -> u32 {
-        self.next_u64().wrapping_shr(32) as u32
-    }
+
 
     #[inline(always)]
     pub fn next_f64(&mut self) -> f64 {
@@ -463,7 +506,6 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_f32(&mut self, buf: &mut [f32]) {
-        let total_len = buf.len();
         let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
             for j in 0..8 {
@@ -477,7 +519,6 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_f64(&mut self, buf: &mut [f64]) {
-        let total_len = buf.len();
         let mut iter = buf.chunks_exact_mut(4);
         for chunk in iter.by_ref() {
             for j in 0..4 {
@@ -1319,9 +1360,9 @@ mod test {
         let mut rng = WyRand::new(1);
         let n = 1000;
         let mut buf = vec![0.0f32; n];
-        let mut modes = vec![0.0; n];
-        let mut slounds = vec![1.0; n];
-        let mut shounds = vec![2.0; n];
+        let modes = vec![0.0; n];
+        let slounds = vec![1.0; n];
+        let shounds = vec![2.0; n];
         
         rng.fill_asym_f32(&mut buf, &modes, &slounds, &shounds);
         
@@ -1339,8 +1380,8 @@ mod test {
         let mut rng = WyRand::new(1);
         let n = 1000;
         let mut buf = vec![0.0f32; n];
-        let mut mins = vec![10.0; n];
-        let mut maxs = vec![20.0; n];
+        let mins = vec![10.0; n];
+        let maxs = vec![20.0; n];
         
         rng.fill_range_f32(&mut buf, &mins, &maxs);
         for &val in &buf {
@@ -1353,7 +1394,7 @@ mod test {
         let mut rng = WyRand::new(1);
         let n = 1000;
         let mut buf = vec![0.0f32; n];
-        let mut sigmas = vec![2.0; n];
+        let sigmas = vec![2.0; n];
         
         rng.fill_rayleigh_f32(&mut buf, &sigmas);
         let mut sum = 0.0;
@@ -1395,6 +1436,23 @@ mod test {
         }
         for i in 10..20 {
             assert_eq!(buf[i], 0.0, "Index {} should remain untouched", i);
+        }
+    }
+
+    #[test]
+    fn test_array_as_param_source() {
+        let mut rng = WyRand::new(42);
+        let mut buf = vec![0.0; 6];
+        let modes = [10.0f64; 6];
+        let sigmas = [1.5f64; 6];
+        
+        // This should now compile and correctly fill the buffer
+        rng.fill_sym_f64(&mut buf, &modes, &sigmas);
+        
+        for i in 0..6 {
+            assert!(buf[i] != 0.0, "Index {} should be filled", i);
+            // Rough check for sym uncertainty (mode 10, sigma 1.5)
+            assert!(buf[i] > 0.0, "Value at {} should be positive", i);
         }
     }
 }
