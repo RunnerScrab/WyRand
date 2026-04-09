@@ -58,7 +58,7 @@ fn bench_f32_symmetric_uncertainty(c: &mut Criterion) {
         let mut buf = vec![0.0; N];
         b.iter(|| {
             for val in buf.iter_mut() {
-                *val = rng.next_symmetric_uncertainty_f32(mode, sigma);
+                *val = rng.next_sym_f32(mode, sigma);
             }
             black_box(&buf);
         })
@@ -67,7 +67,7 @@ fn bench_f32_symmetric_uncertainty(c: &mut Criterion) {
         let mut rng = WyRand::new(1);
         let mut buf = vec![0.0; N];
         b.iter(|| {
-            rng.fill_symmetric_uncertainty_f32(&mut buf, mode, sigma);
+            rng.fill_sym_f32(&mut buf, mode, sigma);
             black_box(&buf);
         })
     });
@@ -84,7 +84,7 @@ fn bench_f32_asymmetric_uncertainty(c: &mut Criterion) {
         let mut buf = vec![0.0; N];
         b.iter(|| {
             for val in buf.iter_mut() {
-                *val = rng.next_asymmetric_uncertainty_f32(mode, sigma_lo, sigma_hi);
+                *val = rng.next_asym_f32(mode, sigma_lo, sigma_hi);
             }
             black_box(&buf);
         })
@@ -93,7 +93,7 @@ fn bench_f32_asymmetric_uncertainty(c: &mut Criterion) {
         let mut rng = WyRand::new(1);
         let mut buf = vec![0.0; N];
         b.iter(|| {
-            rng.fill_asymmetric_uncertainty_f32(&mut buf, mode, sigma_lo, sigma_hi);
+            rng.fill_asym_f32(&mut buf, mode, sigma_lo, sigma_hi);
             black_box(&buf);
         })
     });
@@ -219,6 +219,35 @@ fn bench_f64_rayleigh(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_f32_rayleigh_cols(c: &mut Criterion) {
+    let mut group = c.benchmark_group("f32_rayleigh_cols");
+    let sigmas = vec![2.0; N];
+    group.bench_function("bulk_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0.0; N];
+        b.iter(|| {
+            rng.fill_rayleigh_f32(&mut buf, &sigmas);
+            black_box(&buf);
+        })
+    });
+    group.finish();
+}
+
+fn bench_f32_symmetric_uncertainty_cols(c: &mut Criterion) {
+    let mut group = c.benchmark_group("f32_symmetric_uncertainty_cols");
+    let modes = vec![5.0; N];
+    let sigmas = vec![2.0; N];
+    group.bench_function("bulk_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0.0; N];
+        b.iter(|| {
+            rng.fill_sym_f32(&mut buf, &modes, &sigmas);
+            black_box(&buf);
+        })
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_f32_uniform,
@@ -229,6 +258,8 @@ criterion_group!(
     bench_f64_uniform,
     bench_f64_gaussian,
     bench_f64_rayleigh,
-    bench_f32_beta
+    bench_f32_beta,
+    bench_f32_rayleigh_cols,
+    bench_f32_symmetric_uncertainty_cols
 );
 criterion_main!(benches);
