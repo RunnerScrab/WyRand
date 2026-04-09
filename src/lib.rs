@@ -459,25 +459,25 @@ impl WyRand {
     /// This uses approximate math functions.
     pub fn next_ln_normal_f32(&mut self, ln_mode: f32, sigma_ln: f32) -> f32 {
         let exponent = self.next_normal_f32(ln_mode, sigma_ln);
-        exponent.exp()
+        exponent.approx_exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_ln_normal_f64(&mut self, ln_mode: f64, sigma_ln: f64) -> f64 {
         let exponent = self.next_normal_f64(ln_mode, sigma_ln);
-        exponent.exp()
+        exponent.approx_exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log10_normal_f32(&mut self, log_mode: f32, sigma_log: f32) -> f32 {
         let exponent = self.next_normal_f32(log_mode, sigma_log);
-        10.0_f32.powf(exponent)
+        10.0_f32.approx_powf(exponent)
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log10_normal_f64(&mut self, log_mode: f64, sigma_log: f64) -> f64 {
         let exponent = self.next_normal_f64(log_mode, sigma_log);
-        10.0_f64.powf(exponent)
+        10.0_f64.approx_powf(exponent)
     }
 
     #[inline(always)]
