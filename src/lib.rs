@@ -482,14 +482,28 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_f32(&mut self, buf: &mut [f32]) {
-        for val in buf.iter_mut() {
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(8);
+        for chunk in iter.by_ref() {
+            for j in 0..8 {
+                chunk[j] = self.next_f32();
+            }
+        }
+        for val in iter.into_remainder() {
             *val = self.next_f32();
         }
     }
 
     #[inline(always)]
     pub fn fill_f64(&mut self, buf: &mut [f64]) {
-        for val in buf.iter_mut() {
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(4);
+        for chunk in iter.by_ref() {
+            for j in 0..4 {
+                chunk[j] = self.next_f64();
+            }
+        }
+        for val in iter.into_remainder() {
             *val = self.next_f64();
         }
     }
@@ -955,8 +969,23 @@ impl WyRand {
     where
         A: ParamSource8<f32>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_gamma_f32(alpha.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(8);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 8;
+            let a_arr = alpha.chunk8(offset);
+            
+            // We'll fill this chunk using the scalar next_gamma_f32 for now,
+            // but the structure is now consistent with the other bulk functions.
+            // Vectorized candidate generation will be added in the next step.
+            for j in 0..8 {
+                chunk[j] = self.next_gamma_f32(a_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 8) * 8;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_gamma_f32(alpha.get(offset + i));
         }
     }
 
@@ -964,8 +993,19 @@ impl WyRand {
     where
         A: ParamSource4<f64>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_gamma_f64(alpha.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(4);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 4;
+            let a_arr = alpha.chunk4(offset);
+            for j in 0..4 {
+                chunk[j] = self.next_gamma_f64(a_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 4) * 4;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_gamma_f64(alpha.get(offset + i));
         }
     }
 
@@ -975,8 +1015,20 @@ impl WyRand {
         A: ParamSource8<f32>,
         B: ParamSource8<f32>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_beta_f32(alpha.get(i), beta.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(8);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 8;
+            let a_arr = alpha.chunk8(offset);
+            let b_arr = beta.chunk8(offset);
+            for j in 0..8 {
+                chunk[j] = self.next_beta_f32(a_arr[j], b_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 8) * 8;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i));
         }
     }
 
@@ -985,8 +1037,20 @@ impl WyRand {
         A: ParamSource4<f64>,
         B: ParamSource4<f64>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_beta_f64(alpha.get(i), beta.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(4);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 4;
+            let a_arr = alpha.chunk4(offset);
+            let b_arr = beta.chunk4(offset);
+            for j in 0..4 {
+                chunk[j] = self.next_beta_f64(a_arr[j], b_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 4) * 4;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i));
         }
     }
 
@@ -994,8 +1058,19 @@ impl WyRand {
     where
         K: ParamSource8<f32>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_chi_squared_f32(k.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(8);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 8;
+            let k_arr = k.chunk8(offset);
+            for j in 0..8 {
+                chunk[j] = self.next_chi_squared_f32(k_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 8) * 8;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_chi_squared_f32(k.get(offset + i));
         }
     }
 
@@ -1003,8 +1078,19 @@ impl WyRand {
     where
         K: ParamSource4<f64>,
     {
-        for (i, val) in buf.iter_mut().enumerate() {
-            *val = self.next_chi_squared_f64(k.get(i));
+        let total_len = buf.len();
+        let mut iter = buf.chunks_exact_mut(4);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i * 4;
+            let k_arr = k.chunk4(offset);
+            for j in 0..4 {
+                chunk[j] = self.next_chi_squared_f64(k_arr[j]);
+            }
+        }
+        let rem = iter.into_remainder();
+        let offset = (total_len / 4) * 4;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_chi_squared_f64(k.get(offset + i));
         }
     }
 }
@@ -1312,5 +1398,26 @@ mod test {
         let pi = std::f64::consts::PI;
         let expected_mean = 2.0 * (pi / 2.0).sqrt();
         assert!((mean - expected_mean).abs() < 0.2);
+    }
+}
+
+#[cfg(test)]
+mod term_tests {
+    use super::*;
+    #[test]
+    fn test_non_multiple_lengths() {
+        let mut rng = WyRand::new(42);
+        let lengths = [1, 3, 7, 9, 15, 17, 31, 33];
+        for &len in &lengths {
+            let mut buf = vec![0.0; len];
+            rng.fill_range_f32(&mut buf, 0.0, 1.0);
+            for &val in &buf {
+                assert!(val >= 0.0 && val <= 1.0);
+            }
+            
+            rng.fill_sym_f32(&mut buf, 10.0, 1.0);
+            rng.fill_asym_f32(&mut buf, 10.0, 0.5, 1.5);
+            rng.fill_rayleigh_f32(&mut buf, 1.0);
+        }
     }
 }
