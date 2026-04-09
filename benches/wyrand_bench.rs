@@ -58,7 +58,7 @@ fn bench_f32_symmetric_uncertainty(c: &mut Criterion) {
         let mut buf = vec![0.0; N];
         b.iter(|| {
             for val in buf.iter_mut() {
-                *val = rng.next_sym_f32(mode, sigma);
+                *val = rng.next_sym_rv_f32(mode, sigma);
             }
             black_box(&buf);
         })
@@ -84,7 +84,7 @@ fn bench_f32_asymmetric_uncertainty(c: &mut Criterion) {
         let mut buf = vec![0.0; N];
         b.iter(|| {
             for val in buf.iter_mut() {
-                *val = rng.next_asym_f32(mode, sigma_lo, sigma_hi);
+                *val = rng.next_asym_rv_f32(mode, sigma_lo, sigma_hi);
             }
             black_box(&buf);
         })

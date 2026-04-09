@@ -170,7 +170,7 @@ impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
 ///
 /// let mut rng = WyRand::new(42);
 /// let rv = rng.next_f32();
-/// let in_range = rng.next_range_f32(10.0, 20.0);
+/// let in_range = rng.next_in_range_f32(10.0, 20.0);
 /// ```
 ///
 /// ### High-Throughput Bulk Generation (SIMD)
@@ -241,14 +241,14 @@ impl WyRand {
 
     /// Generates a uniform f32 in the range [min, max].
     #[inline(always)]
-    pub fn next_range_f32(&mut self, min: f32, max: f32) -> f32 {
+    pub fn next_in_range_f32(&mut self, min: f32, max: f32) -> f32 {
         let rv = self.next_f32();
         rv.mul_add(max - min, min)
     }
 
     /// Generates a uniform f64 in the range [min, max].
     #[inline(always)]
-    pub fn next_range_f64(&mut self, min: f64, max: f64) -> f64 {
+    pub fn next_in_range_f64(&mut self, min: f64, max: f64) -> f64 {
         let rv = self.next_f64();
         rv.mul_add(max - min, min)
     }
@@ -333,7 +333,7 @@ impl WyRand {
     }
 
     #[inline(always)]
-    pub fn next_usize_rv_in_range(&mut self, max: usize) -> usize {
+    pub fn next_usize_in_range(&mut self, max: usize) -> usize {
         self.next_u64_in_range(0, max as u64) as usize
     }
 
@@ -388,13 +388,13 @@ impl WyRand {
     /// Generates a symmetric uncertainty value with the given mode and sigma.
     /// Result = mode + (sigma * Gaussian)
     #[inline(always)]
-    pub fn next_sym_f32(&mut self, mode: f32, sigma: f32) -> f32 {
+    pub fn next_sym_rv_f32(&mut self, mode: f32, sigma: f32) -> f32 {
         self.next_gaussian_f32().mul_add(sigma, mode)
     }
 
     /// Generates a symmetric uncertainty value with the given mode and sigma (f64).
     #[inline(always)]
-    pub fn next_sym_f64(&mut self, mode: f64, sigma: f64) -> f64 {
+    pub fn next_sym_rv_f64(&mut self, mode: f64, sigma: f64) -> f64 {
         self.next_gaussian_f64().mul_add(sigma, mode)
     }
 
@@ -404,7 +404,7 @@ impl WyRand {
     /// 
     /// If the internal Gaussian sample is negative, `sigma_low_mag` is used;
     /// otherwise, `sigma_high_mag` is used.
-    pub fn next_asym_f32(
+    pub fn next_asym_rv_f32(
         &mut self,
         mode: f32,
         sigma_low_mag: f32,
@@ -419,7 +419,7 @@ impl WyRand {
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
-    pub fn next_asym_f64(
+    pub fn next_asym_rv_f64(
         &mut self,
         mode: f64,
         sigma_low_mag: f64,
@@ -455,28 +455,28 @@ impl WyRand {
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
-    /// Generates a log-normal symmetric distribution sample (f32).
+    /// Generates a log-normal symmetric random value (f32).
     /// This uses approximate math functions.
     pub fn next_ln_sym_f32(&mut self, ln_mode: f32, sigma_ln: f32) -> f32 {
-        let exponent = self.next_sym_f32(ln_mode, sigma_ln);
+        let exponent = self.next_sym_rv_f32(ln_mode, sigma_ln);
         exponent.exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_ln_sym_f64(&mut self, ln_mode: f64, sigma_ln: f64) -> f64 {
-        let exponent = self.next_sym_f64(ln_mode, sigma_ln);
+        let exponent = self.next_sym_rv_f64(ln_mode, sigma_ln);
         exponent.exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log_sym_f32(&mut self, log_mode: f32, sigma_log: f32) -> f32 {
-        let exponent = self.next_sym_f32(log_mode, sigma_log);
+        let exponent = self.next_sym_rv_f32(log_mode, sigma_log);
         10.0_f32.powf(exponent)
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log_sym_f64(&mut self, log_mode: f64, sigma_log: f64) -> f64 {
-        let exponent = self.next_sym_f64(log_mode, sigma_log);
+        let exponent = self.next_sym_rv_f64(log_mode, sigma_log);
         10.0_f64.powf(exponent)
     }
 
@@ -647,7 +647,7 @@ impl WyRand {
         let rem = iter.into_remainder();
         let offset = (limit / 16) * 16;
         for (i, val) in rem.iter_mut().enumerate() {
-            *val = self.next_range_f32(min.get(offset + i), max.get(offset + i));
+            *val = self.next_in_range_f32(min.get(offset + i), max.get(offset + i));
         }
     }
 
@@ -678,7 +678,7 @@ impl WyRand {
         let rem = iter.into_remainder();
         let offset = (limit / 8) * 8;
         for (i, val) in rem.iter_mut().enumerate() {
-            *val = self.next_range_f64(min.get(offset + i), max.get(offset + i));
+            *val = self.next_in_range_f64(min.get(offset + i), max.get(offset + i));
         }
     }
 
@@ -1293,7 +1293,7 @@ mod test {
     fn test_rand_f32() {
         let mut rng = WyRand::new(1);
         for _ in 0..128 {
-            let rv = rng.next_range_f32(1.0, 12.5);
+            let rv = rng.next_in_range_f32(1.0, 12.5);
             assert!(rv >= 1.0 && rv <= 12.5);
         }
     }
