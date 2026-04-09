@@ -193,6 +193,14 @@ fn bench_f32_poisson(c: &mut Criterion) {
             black_box(&buf);
         })
     });
+    group.bench_function("collecting_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            rng.fill_poisson_collecting_u32(&mut buf, lambda);
+            black_box(&buf);
+        })
+    });
     group.finish();
 }
 
@@ -290,6 +298,14 @@ fn bench_f64_poisson(c: &mut Criterion) {
         let mut buf = vec![0u32; N];
         b.iter(|| {
             rng.fill_poisson_f64_u32(&mut buf, lambda);
+            black_box(&buf);
+        })
+    });
+    group.bench_function("collecting_api", |b| {
+        let mut rng = WyRand::new(1);
+        let mut buf = vec![0u32; N];
+        b.iter(|| {
+            rng.fill_poisson_collecting_f64_u32(&mut buf, lambda);
             black_box(&buf);
         })
     });

@@ -324,6 +324,103 @@ impl WyRand {
     }
 
     #[inline]
+    pub fn fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
+    where
+        L: ParamSource<f32>,
+    {
+        let limit = buf.len().min(lambda.len());
+        let (active, _) = buf.split_at_mut(limit);
+        let mut iter = active.chunks_exact_mut(8);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i << 3;
+            let l_arr = lambda.chunk::<8>(offset);
+            let neg_lambda = [
+                -l_arr[0], -l_arr[1], -l_arr[2], -l_arr[3],
+                -l_arr[4], -l_arr[5], -l_arr[6], -l_arr[7]
+            ];
+            let thresholds = fptricks::batch_approx_exp_f32(neg_lambda);
+
+            let mut counts = [0u32; 8];
+            let mut p = self.next_f32_8();
+            
+            let mut mask = 0u8;
+            for j in 0..8 {
+                if l_arr[j] > 0.0 && p[j] > thresholds[j] {
+                    mask |= 1 << j;
+                }
+            }
+
+            while mask != 0 {
+                let mut next_mask = 0u8;
+                let u = self.next_f32_8();
+                for j in 0..8 {
+                    if (mask >> j) & 1 != 0 {
+                        counts[j] += 1;
+                        p[j] *= u[j];
+                        if p[j] > thresholds[j] {
+                            next_mask |= 1 << j;
+                        }
+                    }
+                }
+                mask = next_mask;
+            }
+            chunk.copy_from_slice(&counts);
+        }
+        let rem = iter.into_remainder();
+        let offset = limit & !7;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_poisson_u32(lambda.get(offset + i));
+        }
+    }
+
+    #[inline]
+    pub fn fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
+    where
+        L: ParamSource<f64>,
+    {
+        let limit = buf.len().min(lambda.len());
+        let (active, _) = buf.split_at_mut(limit);
+        let mut iter = active.chunks_exact_mut(4);
+        for (i, chunk) in iter.by_ref().enumerate() {
+            let offset = i << 2;
+            let l_arr = lambda.chunk::<4>(offset);
+            let neg_lambda = [-l_arr[0], -l_arr[1], -l_arr[2], -l_arr[3]];
+            let thresholds = fptricks::batch_approx_exp_f64(neg_lambda);
+
+            let mut counts = [0u32; 4];
+            let mut p = self.next_f64_4();
+            
+            let mut mask = 0u8;
+            for j in 0..4 {
+                if l_arr[j] > 0.0 && p[j] > thresholds[j] {
+                    mask |= 1 << j;
+                }
+            }
+
+            while mask != 0 {
+                let mut next_mask = 0u8;
+                let u = self.next_f64_4();
+                for j in 0..4 {
+                    if (mask >> j) & 1 != 0 {
+                        counts[j] += 1;
+                        p[j] *= u[j];
+                        if p[j] > thresholds[j] {
+                            next_mask |= 1 << j;
+                        }
+                    }
+                }
+                mask = next_mask;
+            }
+            chunk.copy_from_slice(&counts);
+        }
+        let rem = iter.into_remainder();
+        let offset = limit & !3;
+        for (i, val) in rem.iter_mut().enumerate() {
+            *val = self.next_poisson_f64_u32(lambda.get(offset + i));
+        }
+    }
+
+    #[inline]
     pub fn fill_beta_f32<A, B>(&mut self, buf: &mut [f32], alpha: A, beta: B)
     where
         A: ParamSource<f32>,
@@ -482,6 +579,31 @@ mod tests {
             let (mean, var) = calculate_stats(|| rng.next_poisson_u32(lambda as f32) as f64, n);
             assert!((mean - lambda).abs() < lambda * 0.15 + 0.05);
             assert!((var - lambda).abs() < lambda * 0.15 + 0.1);
+        }
+    }
+
+    #[test]
+    fn test_poisson_collecting_stats() {
+        let mut rng = WyRand::new(1);
+        let n = 100_000;
+        let lambdas = [0.5, 1.0, 5.0, 10.0];
+        let mut buf = vec![0u32; n];
+        for &lambda in &lambdas {
+            rng.fill_poisson_collecting_u32(&mut buf, lambda);
+            
+            let mut sum = 0.0;
+            let mut sum_sq = 0.0;
+            for &val in &buf {
+                let v = val as f64;
+                sum += v;
+                sum_sq += v * v;
+            }
+            let mean = sum / n as f64;
+            let var = sum_sq / n as f64 - mean * mean;
+
+            let lamb = lambda as f64;
+            assert!((mean - lamb).abs() < lamb * 0.15 + 0.05);
+            assert!((var - lamb).abs() < lamb * 0.15 + 0.1);
         }
     }
 }
