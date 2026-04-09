@@ -191,7 +191,7 @@ impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
 /// // Hybrid usage: Constant mode with varying sigmas
 /// let modes = 10.0;
 /// let sigmas = vec![1.5; 1024];
-/// rng.fill_normal_w_err_f32(&mut buffer, modes, &sigmas);
+/// rng.fill_normal_f32(&mut buffer, modes, &sigmas);
 /// ```
 
 #[derive(Clone, Copy, Debug)]
@@ -343,7 +343,7 @@ impl WyRand {
     // Generates a standard normal random variable (mean=0, std_dev=1)
     // using the Box-Muller transform
     #[inline(always)]
-    pub fn next_normal_f32(&mut self) -> f32 {
+    pub fn next_std_normal_f32(&mut self) -> f32 {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_uniform_f32();
         let u2 = 1.0 - self.next_uniform_f32();
@@ -354,7 +354,7 @@ impl WyRand {
 
     // Generates a standard normal random variable (mean=0, std_dev=1)
     // using the Box-Muller transform
-    pub fn next_normal_f64(&mut self) -> f64 {
+    pub fn next_std_normal_f64(&mut self) -> f64 {
         // Box-Muller uses rvs in (0, 1]; subtracting a rv on [0, 1) from 1 gives an rv in (0, 1]
         let u1 = 1.0 - self.next_uniform_f64();
         let u2 = 1.0 - self.next_uniform_f64();
@@ -365,7 +365,7 @@ impl WyRand {
 
     // Generates a pair of independent standard normal random variables
     // (mean=0, std_dev=1) using the Box-Muller transform
-    pub fn next_normal_pair_f32(&mut self) -> (f32, f32) {
+    pub fn next_std_normal_pair_f32(&mut self) -> (f32, f32) {
         let u1 = 1.0 - self.next_uniform_f32();
         let u2 = 1.0 - self.next_uniform_f32();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
@@ -375,7 +375,7 @@ impl WyRand {
 
     // Generates a pair of independent standard normal random variables
     // (mean=0, std_dev=1) using the Box-Muller transform
-    pub fn next_normal_pair_f64(&mut self) -> (f64, f64) {
+    pub fn next_std_normal_pair_f64(&mut self) -> (f64, f64) {
         let u1 = 1.0 - self.next_uniform_f64();
         let u2 = 1.0 - self.next_uniform_f64();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
@@ -388,14 +388,14 @@ impl WyRand {
     /// Generates a value with symmetric Normal additive error.
     /// Result = mode + (sigma * Normal)
     #[inline(always)]
-    pub fn next_normal_w_err_f32(&mut self, mode: f32, sigma: f32) -> f32 {
-        self.next_normal_f32().mul_add(sigma, mode)
+    pub fn next_normal_f32(&mut self, mode: f32, sigma: f32) -> f32 {
+        self.next_std_normal_f32().mul_add(sigma, mode)
     }
 
     /// Generates a value with symmetric Normal additive error (f64).
     #[inline(always)]
-    pub fn next_normal_w_err_f64(&mut self, mode: f64, sigma: f64) -> f64 {
-        self.next_normal_f64().mul_add(sigma, mode)
+    pub fn next_normal_f64(&mut self, mode: f64, sigma: f64) -> f64 {
+        self.next_std_normal_f64().mul_add(sigma, mode)
     }
 
     // Asymmetric uncertainty: uses a split-normal distribution. sigma_low_mag must be
@@ -404,13 +404,13 @@ impl WyRand {
     /// 
     /// If the internal Normal sample is negative, `sigma_low_mag` is used;
     /// otherwise, `sigma_high_mag` is used.
-    pub fn next_normal_w_split_err_f32(
+    pub fn next_split_normal_f32(
         &mut self,
         mode: f32,
         sigma_low_mag: f32,
         sigma_high_mag: f32,
     ) -> f32 {
-        let z = self.next_normal_f32();
+        let z = self.next_std_normal_f32();
         let zlt_mask: u32 = ((z < 0.0) as u32).wrapping_neg();
         let zgeq_mask: u32 = ((z >= 0.0) as u32).wrapping_neg();
 
@@ -419,13 +419,13 @@ impl WyRand {
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
-    pub fn next_normal_w_split_err_f64(
+    pub fn next_split_normal_f64(
         &mut self,
         mode: f64,
         sigma_low_mag: f64,
         sigma_high_mag: f64,
     ) -> f64 {
-        let z = self.next_normal_f64();
+        let z = self.next_std_normal_f64();
         let zlt_mask: u64 = ((z < 0.0) as u64).wrapping_neg();
         let zgeq_mask: u64 = ((z >= 0.0) as u64).wrapping_neg();
 
@@ -440,7 +440,7 @@ impl WyRand {
         sigma: f32,
         limit: f32,
     ) -> f32 {
-        let z = self.next_normal_f32().clamp(-limit, limit);
+        let z = self.next_std_normal_f32().clamp(-limit, limit);
         z.mul_add(sigma, mode)
     }
 
@@ -450,33 +450,33 @@ impl WyRand {
         sigma: f64,
         limit: f64,
     ) -> f64 {
-        let z = self.next_normal_f64().clamp(-limit, limit);
+        let z = self.next_std_normal_f64().clamp(-limit, limit);
         z.mul_add(sigma, mode)
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     /// Generates a log-normal random value (f32).
     /// This uses approximate math functions.
-    pub fn next_log_normal_f32(&mut self, ln_mode: f32, sigma_ln: f32) -> f32 {
-        let exponent = self.next_normal_w_err_f32(ln_mode, sigma_ln);
+    pub fn next_ln_normal_f32(&mut self, ln_mode: f32, sigma_ln: f32) -> f32 {
+        let exponent = self.next_normal_f32(ln_mode, sigma_ln);
         exponent.exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
-    pub fn next_log_normal_f64(&mut self, ln_mode: f64, sigma_ln: f64) -> f64 {
-        let exponent = self.next_normal_w_err_f64(ln_mode, sigma_ln);
+    pub fn next_ln_normal_f64(&mut self, ln_mode: f64, sigma_ln: f64) -> f64 {
+        let exponent = self.next_normal_f64(ln_mode, sigma_ln);
         exponent.exp()
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log10_normal_f32(&mut self, log_mode: f32, sigma_log: f32) -> f32 {
-        let exponent = self.next_normal_w_err_f32(log_mode, sigma_log);
+        let exponent = self.next_normal_f32(log_mode, sigma_log);
         10.0_f32.powf(exponent)
     }
 
     ///This uses approximate math functions so is not appropriate when high accuracy is required
     pub fn next_log10_normal_f64(&mut self, log_mode: f64, sigma_log: f64) -> f64 {
-        let exponent = self.next_normal_w_err_f64(log_mode, sigma_log);
+        let exponent = self.next_normal_f64(log_mode, sigma_log);
         10.0_f64.powf(exponent)
     }
 
@@ -510,7 +510,7 @@ impl WyRand {
         let d = alpha - 1.0 / 3.0;
         let c = 1.0 / (9.0 * d).approx_sqrt();
         loop {
-            let z = self.next_normal_f32();
+            let z = self.next_std_normal_f32();
             let v = 1.0 + c * z;
             if v <= 0.0 {
                 continue;
@@ -543,7 +543,7 @@ impl WyRand {
         let d = alpha - 1.0 / 3.0;
         let c = 1.0 / (9.0 * d).approx_sqrt();
         loop {
-            let z = self.next_normal_f64();
+            let z = self.next_std_normal_f64();
             let v = 1.0 + c * z;
             if v <= 0.0 {
                 continue;
@@ -685,7 +685,7 @@ impl WyRand {
 
     // Generates Box-Muller normal variables in bulk using SIMD batches.
     // Extremely fast: processes 8 sines and 8 cosines per 16 iterations.
-    pub fn fill_normal_f32(&mut self, buf: &mut [f32]) {
+    pub fn fill_std_normal_f32(&mut self, buf: &mut [f32]) {
         let mut iter = buf.chunks_exact_mut(16);
         for chunk in iter.by_ref() {
             let u1_8 = self.next_f32_8();
@@ -712,17 +712,17 @@ impl WyRand {
         let remainder = iter.into_remainder();
         let mut i = 0;
         while i + 1 < remainder.len() {
-            let (s, c) = self.next_normal_pair_f32();
+            let (s, c) = self.next_std_normal_pair_f32();
             remainder[i] = s;
             remainder[i + 1] = c;
             i += 2;
         }
         if i < remainder.len() {
-            remainder[i] = self.next_normal_f32();
+            remainder[i] = self.next_std_normal_f32();
         }
     }
 
-    pub fn fill_normal_f64(&mut self, buf: &mut [f64]) {
+    pub fn fill_std_normal_f64(&mut self, buf: &mut [f64]) {
         let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
             let u1_4 = self.next_f64_4();
@@ -749,19 +749,19 @@ impl WyRand {
         let remainder = iter.into_remainder();
         let mut i = 0;
         while i + 1 < remainder.len() {
-            let (s, c) = self.next_normal_pair_f64();
+            let (s, c) = self.next_std_normal_pair_f64();
             remainder[i] = s;
             remainder[i + 1] = c;
             i += 2;
         }
         if i < remainder.len() {
-            remainder[i] = self.next_normal_f64();
+            remainder[i] = self.next_std_normal_f64();
         }
     }
     /// Fills a buffer with symmetric Normal additive error samples.
     /// 
     /// Supports hybrid parameter sources (e.g., constant mode, varying sigma).
-    pub fn fill_normal_w_err_f32<M, S>(&mut self, buf: &mut [f32], mode: M, sigma: S)
+    pub fn fill_normal_f32<M, S>(&mut self, buf: &mut [f32], mode: M, sigma: S)
     where
         M: ParamSource<f32>,
         S: ParamSource<f32>,
@@ -805,17 +805,17 @@ impl WyRand {
         let offset = (limit / 16) * 16;
         let mut i = 0;
         while i + 1 < rem.len() {
-            let (s, c) = self.next_normal_pair_f32();
+            let (s, c) = self.next_std_normal_pair_f32();
             rem[i] = mode.get(offset + i) + s * sigma.get(offset + i);
             rem[i + 1] = mode.get(offset + i + 1) + c * sigma.get(offset + i + 1);
             i += 2;
         }
         if i < rem.len() {
-            rem[i] = self.next_normal_f32().mul_add(sigma.get(offset + i), mode.get(offset + i));
+            rem[i] = self.next_std_normal_f32().mul_add(sigma.get(offset + i), mode.get(offset + i));
         }
     }
 
-    pub fn fill_normal_w_err_f64<M, S>(&mut self, buf: &mut [f64], mode: M, sigma: S)
+    pub fn fill_normal_f64<M, S>(&mut self, buf: &mut [f64], mode: M, sigma: S)
     where
         M: ParamSource<f64>,
         S: ParamSource<f64>,
@@ -859,13 +859,13 @@ impl WyRand {
         let offset = (limit / 8) * 8;
         let mut i = 0;
         while i + 1 < rem.len() {
-            let (s, c) = self.next_normal_pair_f64();
+            let (s, c) = self.next_std_normal_pair_f64();
             rem[i] = mode.get(offset + i) + s * sigma.get(offset + i);
             rem[i + 1] = mode.get(offset + i + 1) + c * sigma.get(offset + i + 1);
             i += 2;
         }
         if i < rem.len() {
-            rem[i] = self.next_normal_f64().mul_add(sigma.get(offset + i), mode.get(offset + i));
+            rem[i] = self.next_std_normal_f64().mul_add(sigma.get(offset + i), mode.get(offset + i));
         }
     }
 
@@ -877,7 +877,7 @@ impl WyRand {
     {
         let shared_limit = buf.len().min(mode.len()).min(sigma.len()).min(limit.len());
         let (active, _) = buf.split_at_mut(shared_limit);
-        self.fill_normal_f32(active);
+        self.fill_std_normal_f32(active);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i * 8;
@@ -906,7 +906,7 @@ impl WyRand {
     {
         let shared_limit = buf.len().min(mode.len()).min(sigma.len()).min(limit.len());
         let (active, _) = buf.split_at_mut(shared_limit);
-        self.fill_normal_f64(active);
+        self.fill_std_normal_f64(active);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i * 4;
@@ -927,7 +927,7 @@ impl WyRand {
         }
     }
 
-    pub fn fill_normal_w_split_err_f32<M, SLO, SHI>(&mut self, buf: &mut [f32], mode: M, sigma_lo: SLO, sigma_hi: SHI)
+    pub fn fill_split_normal_f32<M, SLO, SHI>(&mut self, buf: &mut [f32], mode: M, sigma_lo: SLO, sigma_hi: SHI)
     where
         M: ParamSource<f32>,
         SLO: ParamSource<f32>,
@@ -979,7 +979,7 @@ impl WyRand {
         let rem = iter.into_remainder();
         let offset = (limit / 16) * 16;
         for (i, val) in rem.iter_mut().enumerate() {
-            let x = self.next_normal_f32();
+            let x = self.next_std_normal_f32();
             let m = mode.get(offset + i);
             let s_lo = sigma_lo.get(offset + i);
             let s_hi = sigma_hi.get(offset + i);
@@ -987,7 +987,7 @@ impl WyRand {
         }
     }
 
-    pub fn fill_normal_w_split_err_f64<M, SLO, SHI>(&mut self, buf: &mut [f64], mode: M, sigma_lo: SLO, sigma_hi: SHI)
+    pub fn fill_split_normal_f64<M, SLO, SHI>(&mut self, buf: &mut [f64], mode: M, sigma_lo: SLO, sigma_hi: SHI)
     where
         M: ParamSource<f64>,
         SLO: ParamSource<f64>,
@@ -995,7 +995,7 @@ impl WyRand {
     {
         let limit = buf.len().min(mode.len()).min(sigma_lo.len()).min(sigma_hi.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_normal_f64(active);
+        self.fill_std_normal_f64(active);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i * 4;
@@ -1019,14 +1019,14 @@ impl WyRand {
         }
     }
 
-    pub fn fill_log_normal_f32<M, S>(&mut self, buf: &mut [f32], ln_mode: M, sigma_ln: S)
+    pub fn fill_ln_normal_f32<M, S>(&mut self, buf: &mut [f32], ln_mode: M, sigma_ln: S)
     where
         M: ParamSource<f32>,
         S: ParamSource<f32>,
     {
         let limit = buf.len().min(ln_mode.len()).min(sigma_ln.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_normal_w_err_f32(active, ln_mode, sigma_ln);
+        self.fill_normal_f32(active, ln_mode, sigma_ln);
         let mut iter = active.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
             let mut arr = [0.0; 8];
@@ -1039,14 +1039,14 @@ impl WyRand {
         }
     }
 
-    pub fn fill_log_normal_f64<M, S>(&mut self, buf: &mut [f64], ln_mode: M, sigma_ln: S)
+    pub fn fill_ln_normal_f64<M, S>(&mut self, buf: &mut [f64], ln_mode: M, sigma_ln: S)
     where
         M: ParamSource<f64>,
         S: ParamSource<f64>,
     {
         let limit = buf.len().min(ln_mode.len()).min(sigma_ln.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_normal_w_err_f64(active, ln_mode, sigma_ln);
+        self.fill_normal_f64(active, ln_mode, sigma_ln);
         let mut iter = active.chunks_exact_mut(4);
         for chunk in iter.by_ref() {
             let mut arr = [0.0; 4];
@@ -1066,7 +1066,7 @@ impl WyRand {
     {
         let limit = buf.len().min(log_mode.len()).min(sigma_log.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_normal_w_err_f32(active, log_mode, sigma_log);
+        self.fill_normal_f32(active, log_mode, sigma_log);
         let mut iter = active.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
             let mut arr = [0.0; 8];
@@ -1086,7 +1086,7 @@ impl WyRand {
     {
         let limit = buf.len().min(log_mode.len()).min(sigma_log.len());
         let (active, _) = buf.split_at_mut(limit);
-        self.fill_normal_w_err_f64(active, log_mode, sigma_log);
+        self.fill_normal_f64(active, log_mode, sigma_log);
         let mut iter = active.chunks_exact_mut(4);
         for chunk in iter.by_ref() {
             let mut arr = [0.0; 4];
@@ -1326,12 +1326,12 @@ mod test {
     fn test_normal_stats() {
         let mut rng = WyRand::new(1);
         let n = 100_000;
-        let (mean, var) = calculate_stats(|| rng.next_normal_f32() as f64, n);
+        let (mean, var) = calculate_stats(|| rng.next_std_normal_f32() as f64, n);
         println!("Normal f32 | mean: {}, var: {}", mean, var);
         assert!(mean.abs() < 0.1);
         assert!((var - 1.0).abs() < 0.15);
 
-        let (mean, var) = calculate_stats(|| rng.next_normal_f64(), n);
+        let (mean, var) = calculate_stats(|| rng.next_std_normal_f64(), n);
         println!("Normal f64 | mean: {}, var: {}", mean, var);
         assert!(mean.abs() < 0.1);
         assert!((var - 1.0).abs() < 0.1);
@@ -1348,7 +1348,7 @@ mod test {
         let mut sum_sq_c = 0.0;
 
         for _ in 0..n {
-            let (s, c) = rng.next_normal_pair_f32();
+            let (s, c) = rng.next_std_normal_pair_f32();
             sum_s += s as f64;
             sum_c += c as f64;
             sum_sq_s += (s * s) as f64;
@@ -1372,7 +1372,7 @@ mod test {
         let mut sum_sq_c = 0.0;
 
         for _ in 0..n {
-            let (s, c) = rng.next_normal_pair_f64();
+            let (s, c) = rng.next_std_normal_pair_f64();
             sum_s += s;
             sum_c += c;
             sum_sq_s += s * s;
@@ -1457,7 +1457,7 @@ mod test {
         let mut rng = WyRand::new(1);
         let n = 100_000;
         let mut buf = vec![0.0f32; n];
-        rng.fill_normal_f32(&mut buf);
+        rng.fill_std_normal_f32(&mut buf);
         
         let mut sum = 0.0;
         let mut sum_sq = 0.0;
@@ -1512,7 +1512,7 @@ mod test {
             sigmas[i] = 1.0;
         }
         
-        rng.fill_normal_w_err_f32(&mut buf, &modes, &sigmas);
+        rng.fill_normal_f32(&mut buf, &modes, &sigmas);
         
         // Check first half (mode 10, sigma 1)
         let mut sum1 = 0.0;
@@ -1550,9 +1550,9 @@ mod test {
         let slounds = vec![1.0; n];
         let shounds = vec![2.0; n];
         
-        rng.fill_normal_w_split_err_f32(&mut buf, &modes, &slounds, &shounds);
+        rng.fill_split_normal_f32(&mut buf, &modes, &slounds, &shounds);
         
-        // Asymmetric gaussian with mode 0, sigma_lo 1, sigma_hi 2
+        // Asymmetric normal with mode 0, sigma_lo 1, sigma_hi 2
         // Mean should be approx (2-1) / sqrt(2*pi) = 0.398
         let mut sum = 0.0;
         for &val in &buf { sum += val as f64; }
@@ -1601,8 +1601,8 @@ mod test {
                 assert!(val >= 0.0 && val <= 1.0);
             }
             
-            rng.fill_normal_w_err_f32(&mut buf, 10.0, 1.0);
-            rng.fill_normal_w_split_err_f32(&mut buf, 10.0, 0.5, 1.5);
+            rng.fill_normal_f32(&mut buf, 10.0, 1.0);
+            rng.fill_split_normal_f32(&mut buf, 10.0, 0.5, 1.5);
             rng.fill_rayleigh_f32(&mut buf, 1.0);
         }
     }
@@ -1615,7 +1615,7 @@ mod test {
         let sigma = 1.0;          // Scalar
         
         // Should fill only first 10 elements of buf (intersection of len 20 and 10)
-        rng.fill_normal_w_err_f32(&mut buf, &mode, sigma);
+        rng.fill_normal_f32(&mut buf, &mode, sigma);
         
         for i in 0..10 {
             assert!(buf[i] != 0.0, "Index {} should be filled", i);
@@ -1633,7 +1633,7 @@ mod test {
         let sigmas = [1.5f64; 6];
         
         // This should now compile and correctly fill the buffer
-        rng.fill_normal_w_err_f64(&mut buf, &modes, &sigmas);
+        rng.fill_normal_f64(&mut buf, &modes, &sigmas);
         
         for i in 0..6 {
             assert!(buf[i] != 0.0, "Index {} should be filled", i);
