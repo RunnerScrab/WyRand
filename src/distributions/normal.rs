@@ -1,3 +1,4 @@
+
 use crate::WyRand;
 use crate::traits::ParamSource;
 use fptricks::*;
@@ -126,6 +127,30 @@ impl WyRand {
     pub fn next_log10_normal_f64(&mut self, log_mode: f64, sigma_log: f64) -> f64 {
         let exponent = self.next_normal_f64(log_mode, sigma_log);
         10.0_f64.approx_powf(exponent)
+    }
+
+    ///Samples from the isotropic distribution, which is useful specifically
+    ///for generating polar angles in a spherical coordinate system. Simply
+    ///drawing from a uniform distribution on [0, 2π] for θ would cause a bias towards
+    ///the poles, because a change in azimuthal angle dφ of a vector would make
+    ///that vector move faster when θ pointed it closer to the equator; in other words,
+    ///the same dθ maps to less and less 3D surface area the closer θ gets to 0 or π.
+    ///Look at the expression for differential area: dA = (r^2) sin(θ) dθdφ
+
+    ///(Similarly, generating 3 uniformly distributed random values for a Cartesian
+    ///coordinate vector would result in bias towards corners of a cube; in that case,
+    ///Gaussian RVs can be used.)
+    #[inline(always)]
+    pub fn next_isotropic_polar_angle_f32(&mut self) -> f32 {
+
+        let u = self.next_uniform_f32();
+        (1.0 - u.fast_mul2()).approx_acos()
+    }
+
+    #[inline(always)]
+    pub fn next_isotropic_polar_angle_f64(&mut self) -> f64 {
+        let u = self.next_uniform_f64();
+        (1.0 - u.fast_mul2()).approx_acos()
     }
 
     #[inline]
@@ -767,4 +792,30 @@ mod tests {
             assert!(mean_hi > 1.2 && mean_hi < 2.0);
         }
     }
+
+    #[test]
+    fn test_radian_sampling_stats() {
+        let mut rng = WyRand::new(42);
+        let n = 100_000;
+        
+        // Test: Full sphere using specialized function
+        // Inclination angle for a uniform sphere: cos(i) is uniform in [-1, 1]
+        let mut sum_cos = 0.0;
+        for _ in 0..n {
+            let i = rng.next_isotropic_polar_angle_f32();
+            sum_cos += i.cos() as f64; 
+        }
+        let mean_cos = sum_cos / n as f64;
+        assert!(mean_cos.abs() < 0.05, "Full sphere f32 mean_cos: {}", mean_cos);
+
+        let mut sum_cos = 0.0;
+        for _ in 0..n {
+            let i = rng.next_isotropic_polar_angle_f64();
+            sum_cos += i.cos() as f64; 
+        }
+        let mean_cos = sum_cos / n as f64;
+        assert!(mean_cos.abs() < 0.05, "Full sphere f64 mean_cos: {}", mean_cos);
+    }
+
+
 }

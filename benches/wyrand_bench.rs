@@ -312,6 +312,24 @@ fn bench_f64_poisson(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_radian_sampling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("radian_sampling");
+    group.bench_function("f32_on_sphere", |b| {
+        let mut rng = WyRand::new(1);
+        b.iter(|| {
+            black_box(rng.next_isotropic_polar_angle_f32());
+        })
+    });
+    group.bench_function("f64_on_sphere", |b| {
+        let mut rng = WyRand::new(1);
+        b.iter(|| {
+            black_box(rng.next_isotropic_polar_angle_f64());
+        })
+    });
+    group.finish();
+}
+
+
 criterion_group!(
     benches,
     bench_f32_uniform,
@@ -326,6 +344,7 @@ criterion_group!(
     bench_f32_rayleigh_cols,
     bench_f32_normal_cols,
     bench_f32_poisson,
-    bench_f64_poisson
+    bench_f64_poisson,
+    bench_radian_sampling
 );
 criterion_main!(benches);

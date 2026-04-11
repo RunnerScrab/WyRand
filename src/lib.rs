@@ -1,4 +1,5 @@
 
+#![allow(unused)]
 pub mod traits;
 pub mod distributions;
 
