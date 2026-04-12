@@ -4,6 +4,19 @@ use fptricks::*;
 
 impl WyRand {
     #[inline(always)]
+    pub fn next_power_law(&mut self, min: f64, max: f64, k: f64) -> f64 {
+        let roll = self.next_uniform_f64();
+        let kp1 = k + 1.0;
+        let kp1lt: u64 = ((kp1.abs() < 1e-9) as u64).wrapping_neg();
+        f64::from_bits(((min * (max/min).approx_powf(roll)).to_bits() & kp1lt) | (!kp1lt & 
+        {
+            let min_pow = min.approx_powf(kp1);
+            let max_pow = max.approx_powf(kp1);
+            (roll * (max_pow - min_pow) + min_pow).approx_powf(1.0 / kp1)
+        }.to_bits()))
+    }
+
+    #[inline(always)]
     pub fn next_rayleigh_f32(&mut self, sigma: f32) -> f32 {
         let u = 1.0 - self.next_uniform_f32();
         let r = (-u.approx_ln().fast_mul2()).approx_sqrt();
