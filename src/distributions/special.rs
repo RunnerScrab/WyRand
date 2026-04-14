@@ -358,22 +358,27 @@ impl WyRand {
             
             let mut mask = 0u8;
             for j in 0..8 {
-                if l_arr[j] > 0.0 && p[j] > thresholds[j] {
-                    mask |= 1 << j;
-                }
+                let is_pos = (l_arr[j] > 0.0) as u8;
+                let is_gt = (p[j] > thresholds[j]) as u8;
+                mask |= (is_pos & is_gt) << j;
             }
 
             while mask != 0 {
                 let mut next_mask = 0u8;
                 let u = self.next_f32_8();
                 for j in 0..8 {
-                    if (mask >> j) & 1 != 0 {
-                        counts[j] += 1;
-                        p[j] *= u[j];
-                        if p[j] > thresholds[j] {
-                            next_mask |= 1 << j;
-                        }
-                    }
+                    let active = (mask >> j) & 1;
+                    let active_mask = (active as u32).wrapping_neg();
+
+                    counts[j] += active as u32;
+
+                    let multiplier = f32::from_bits(
+                        (u[j].to_bits() & active_mask) | (1.0f32.to_bits() & !active_mask)
+                    );
+                    p[j] *= multiplier;
+                    
+                    let still_gt = (p[j] > thresholds[j]) as u8;
+                    next_mask |= (still_gt & active) << j;
                 }
                 mask = next_mask;
             }
@@ -405,22 +410,27 @@ impl WyRand {
             
             let mut mask = 0u8;
             for j in 0..4 {
-                if l_arr[j] > 0.0 && p[j] > thresholds[j] {
-                    mask |= 1 << j;
-                }
+                let is_pos = (l_arr[j] > 0.0) as u8;
+                let is_gt = (p[j] > thresholds[j]) as u8;
+                mask |= (is_pos & is_gt) << j;
             }
 
             while mask != 0 {
                 let mut next_mask = 0u8;
                 let u = self.next_f64_4();
                 for j in 0..4 {
-                    if (mask >> j) & 1 != 0 {
-                        counts[j] += 1;
-                        p[j] *= u[j];
-                        if p[j] > thresholds[j] {
-                            next_mask |= 1 << j;
-                        }
-                    }
+                    let active = (mask >> j) & 1;
+                    let active_mask = (active as u64).wrapping_neg();
+
+                    counts[j] += active as u32;
+
+                    let multiplier = f64::from_bits(
+                        (u[j].to_bits() & active_mask) | (1.0f64.to_bits() & !active_mask)
+                    );
+                    p[j] *= multiplier;
+                    
+                    let still_gt = (p[j] > thresholds[j]) as u8;
+                    next_mask |= (still_gt & active) << j;
                 }
                 mask = next_mask;
             }
