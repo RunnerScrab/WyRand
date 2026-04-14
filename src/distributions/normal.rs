@@ -489,7 +489,7 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(16);
         
         for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i * 16;
+            let offset = i << 4;
             let u1_8 = self.next_f32_8();
             let u2_8 = self.next_f32_8();
             
@@ -515,11 +515,16 @@ impl WyRand {
             for j in 0..8 {
                 let x = r[j] * s[j];
                 let m = m1[j];
-                chunk[j << 1] = if x < 0.0 { m + x * sl1[j] } else { m + x * sh1[j] };
+                let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
+                chunk[j << 1] = f32::from_bits(
+                    ((m + x * sl1[j]).to_bits() & xltz) | ((m + x * sh1[j]).to_bits() & !xltz)
+                );
                 
                 let x2 = r[j] * c[j];
                 let m2v = m2[j];
-                chunk[(j << 1) + 1] = if x2 < 0.0 { m2v + x2 * sl2[j] } else { m2v + x2 * sh2[j] };
+                let x2ltz: u32 = ((x2 < 0.0) as u32).wrapping_neg();
+                chunk[(j << 1) + 1] = f32::from_bits((x2ltz & (m2v + x2 * sl2[j]).to_bits()) |
+                    (!x2ltz & (m2v + x2 + sh2[j]).to_bits()));
             }
         }
         
@@ -530,7 +535,8 @@ impl WyRand {
             let m = mode.get(offset + i);
             let s_lo = sigma_lo.get(offset + i);
             let s_hi = sigma_hi.get(offset + i);
-            *val = if x < 0.0 { m + x * s_lo } else { m + x * s_hi };
+            let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
+            *val = f32::from_bits((xltz & (m+x*s_lo).to_bits()) | (!xltz & (m + x * s_hi).to_bits()));
         }
     }
 
@@ -602,11 +608,17 @@ impl WyRand {
             for j in 0..8 {
                 let x = r[j] * s[j];
                 let (sl1, sh1) = sigs1[j];
-                chunk[j << 1] = if x < 0.0 { m1[j] + x * sl1 } else { m1[j] + x * sh1 };
+                let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
+                chunk[j << 1] = f32::from_bits((xltz & (m1[j] + x * sl1).to_bits()) | 
+                    (!xltz & (m1[j] + x * sh1).to_bits()));
                 
                 let x2 = r[j] * c[j];
                 let (sl2, sh2) = sigs2[j];
-                chunk[(j << 1) + 1] = if x2 < 0.0 { m2[j] + x2 * sl2 } else { m2[j] + x2 * sh2 };
+                let x2ltz: u32 = ((x2 < 0.0) as u32).wrapping_neg();
+                chunk[(j << 1) + 1] = f32::from_bits(
+                    (x2ltz & (m2[j] + x2 * sl2).to_bits()) |
+                    (!x2ltz & (m2[j] + x2 * sh2).to_bits())
+                );
             }
         }
         
@@ -616,7 +628,11 @@ impl WyRand {
             let x = self.next_std_normal_f32();
             let m = mode.get(offset + i);
             let (s_lo, s_hi) = table.get(offset + i);
-            *val = if x < 0.0 { m + x * s_lo } else { m + x * s_hi };
+            let xltz: u32 = ((x < 0.0) as u32).wrapping_neg();
+            *val = f32::from_bits(
+                (xltz & (m + x * s_lo).to_bits()) |
+                (!xltz & (m + x * s_hi).to_bits())
+            );
         }
     }
 
