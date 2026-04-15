@@ -25,30 +25,33 @@ pub use distributions::*;
 /// let in_range = rng.next_uniform_in_range_f32(10.0, 20.0);
 /// ```
 ///
-/// ### High-Throughput Bulk Generation (SIMD)
+/// ### Bulk Generation into an Existing Buffer (Heap-Friendly)
 /// ```
 /// use wyrand::WyRand;
 ///
 /// let mut rng = WyRand::new(42);
-/// let mut buffer = vec![0.0f32; 1024];
-/// 
-/// // Bulk uniform generation
-/// rng.fill_uniform_f32(&mut buffer);
 ///
-/// // Bulk generation with varying parameters (Columnar)
-/// let mins = vec![0.0; 1024];
-/// let maxs = vec![1.0; 1024];
-/// rng.fill_uniform_in_range_f32(&mut buffer, &mins, &maxs);
+/// // fill_* writes into a caller-owned slice; safe for any size N.
+/// let mut buf = vec![0.0f32; 100_000];
+/// rng.fill_uniform_f32(&mut buf);
 ///
-/// // Hybrid usage: Constant mode with varying sigmas
-/// let modes = 10.0;
-/// let sigmas = vec![1.5; 1024];
-/// rng.fill_normal_f32(&mut buffer, modes, &sigmas);
+/// // Columnar parameters — varying mode/sigma per element
+/// let modes = vec![10.0f32; 1024];
+/// let sigmas = vec![1.5f32; 1024];
+/// let mut normals = vec![0.0f32; 1024];
+/// rng.fill_normal_f32(&mut normals, &modes, &sigmas);
+/// ```
 ///
-/// // Bulk Poisson sampling with varying rates
-/// let mut p_buffer = vec![0u32; 1024];
-/// let lambdas = vec![2.0; 1024];
-/// rng.fill_poisson_u32(&mut p_buffer, &lambdas);
+/// ### Stack-Array Generation (Zero Allocation, Const N)
+/// ```
+/// use wyrand::WyRand;
+///
+/// let mut rng = WyRand::new(42);
+///
+/// // make_filled_* returns a [T; N] by value — no heap alloc, no zero-init.
+/// // Keep N small enough to fit comfortably on the stack (a few KiB is fine).
+/// let buffer: [f32; 1024] = rng.make_filled_uniform_f32();
+/// let normals: [f32; 1024] = rng.make_filled_std_normal_f32();
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct WyRand(u64);
