@@ -125,7 +125,7 @@ impl WyRand {
             for j in 0..8 { u[j] = 1.0 - self.next_uniform_f32(); }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u), -2.0, 0.0));
             let s_chunk = sigma.chunk::<8>(offset);
-            for j in 0..8 { chunk[j] = r[j] * s_chunk[j]; }
+            chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &s_chunk));
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -145,7 +145,7 @@ impl WyRand {
             for j in 0..4 { u[j] = 1.0 - self.next_uniform_f64(); }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u), -2.0, 0.0));
             let s_chunk = sigma.chunk::<4>(offset);
-            for j in 0..4 { chunk[j] = r[j] * s_chunk[j]; }
+            chunk.copy_from_slice(&fptricks::batch_mul_cols_f64(&r, &s_chunk));
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
@@ -377,7 +377,8 @@ impl WyRand {
             for j in 0..8 { u[j] = 1.0 - self.next_uniform_f32(); }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u), -2.0, 0.0));
             let s_chunk = sigma.chunk::<8>(offset);
-            for j in 0..8 { chunk[j].write(r[j] * s_chunk[j]); }
+            let res = fptricks::batch_mul_cols_f32(&r, &s_chunk);
+            for j in 0..8 { chunk[j].write(res[j]); }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -400,7 +401,8 @@ impl WyRand {
             for j in 0..4 { u[j] = 1.0 - self.next_uniform_f64(); }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u), -2.0, 0.0));
             let s_chunk = sigma.chunk::<4>(offset);
-            for j in 0..4 { chunk[j].write(r[j] * s_chunk[j]); }
+            let res = fptricks::batch_mul_cols_f64(&r, &s_chunk);
+            for j in 0..4 { chunk[j].write(res[j]); }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
