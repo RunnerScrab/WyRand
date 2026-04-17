@@ -28,7 +28,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_gamma_f32(&mut self, alpha: f32) -> f32 {
-        if alpha <= 0.0 { return 0.0; }
+        if !(alpha > 0.0) { return 0.0; }
         if alpha < 1.0 {
             let u1 = 1.0 - self.next_uniform_f32();
             return self.next_gamma_f32(alpha + 1.0) * (u1.approx_ln() / alpha).approx_exp();
@@ -50,7 +50,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_gamma_f64(&mut self, alpha: f64) -> f64 {
-        if alpha <= 0.0 { return 0.0; }
+        if !(alpha > 0.0) { return 0.0; }
         if alpha < 1.0 {
             let u1 = 1.0 - self.next_uniform_f64();
             return self.next_gamma_f64(alpha + 1.0) * (u1.approx_ln() / alpha).approx_exp();
@@ -92,7 +92,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_poisson_u32(&mut self, lambda: f32) -> u32 {
-        if lambda <= 0.0 { return 0; }
+        if !(lambda > 0.0) { return 0; }
         if lambda > 30.0 {
             let z = self.next_std_normal_f32();
             return (z * lambda.approx_sqrt() + lambda).max(0.0) as u32;
@@ -105,7 +105,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_poisson_f64_u32(&mut self, lambda: f64) -> u32 {
-        if lambda <= 0.0 { return 0; }
+        if !(lambda > 0.0) { return 0; }
         if lambda > 30.0 {
             let z = self.next_std_normal_f64();
             return (z * lambda.sqrt() + lambda).max(0.0) as u32;
@@ -202,7 +202,10 @@ impl WyRand {
             let l_arr = lambda.chunk::<8>(i << 3);
             let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    chunk[j] = 0;
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     chunk[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0; // Don't run loop
                 } else {
@@ -233,7 +236,10 @@ impl WyRand {
             let l_arr = lambda.chunk::<4>(i << 2);
             let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    chunk[j] = 0;
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     chunk[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
@@ -506,7 +512,10 @@ impl WyRand {
             let l_arr = lambda.chunk::<8>(i << 3);
             let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    chunk[j].write(0);
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     chunk[j].write((self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32);
                     l_eff[j] = 0.0;
                 } else {
@@ -540,7 +549,10 @@ impl WyRand {
             let l_arr = lambda.chunk::<4>(i << 2);
             let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    chunk[j].write(0);
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     chunk[j].write((self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32);
                     l_eff[j] = 0.0;
                 } else {
@@ -802,5 +814,40 @@ mod tests {
             assert!((mean - l).abs() < l * 0.15 + 0.05);
             assert!((var - l).abs() < l * 0.15 + 0.1);
         }
+    }
+
+    #[test]
+    fn test_poisson_stability() {
+        let mut rng = WyRand::new(42);
+        // Robustness against NaN (IEEE-754 comparison safety)
+        assert_eq!(rng.next_poisson_u32(f32::NAN), 0);
+        assert_eq!(rng.next_poisson_f64_u32(f64::NAN), 0);
+        // Robustness against negative and large Infinity
+        assert_eq!(rng.next_poisson_u32(-1.0), 0);
+        let k = rng.next_poisson_u32(f32::INFINITY);
+        assert!(k > 0);
+    }
+
+    #[test]
+    fn test_gamma_stability() {
+        let mut rng = WyRand::new(42);
+        // Robustness against NaN
+        assert_eq!(rng.next_gamma_f32(f32::NAN), 0.0);
+        assert_eq!(rng.next_gamma_f64(f64::NAN), 0.0);
+        // Robustness against non-positive
+        assert_eq!(rng.next_gamma_f32(0.0), 0.0);
+        assert_eq!(rng.next_gamma_f32(-1.0), 0.0);
+    }
+
+    #[test]
+    fn test_large_lambda_poisson() {
+        let mut rng = WyRand::new(42);
+        // Verify normal approximation works for high lambda
+        let k = rng.next_poisson_u32(100.0);
+        assert!(k > 50 && k < 150);
+        
+        let mut buf = [0u32; 16];
+        rng.fill_poisson_u32(&mut buf, 100.0);
+        for &k in &buf { assert!(k > 0); }
     }
 }

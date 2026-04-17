@@ -999,4 +999,22 @@ mod tests {
         for _ in 0..n { let i = rng.next_isotropic_polar_angle_f64(); sum_cos += i.cos() as f64; }
         assert!((sum_cos / n as f64).abs() < 0.05);
     }
+
+    #[test]
+    fn test_normal_nan_stability() {
+        let mut rng = WyRand::new(12345);
+        // Stress test millions of draws to verify clamping and NaN-free operation
+        for _ in 0..10_000_000 {
+            let x = rng.next_std_normal_f32();
+            assert!(!x.is_nan() && !x.is_infinite(), "NaN or Inf detected in scalar StdNormal");
+        }
+        
+        let mut buf = [0.0f32; 1024];
+        for _ in 0..10_000 {
+            rng.fill_std_normal_f32(&mut buf);
+            for &v in &buf {
+                assert!(!v.is_nan() && !v.is_infinite(), "NaN or Inf detected in batch StdNormal");
+            }
+        }
+    }
 }
