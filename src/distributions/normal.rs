@@ -29,7 +29,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_std_normal_pair_f32(&mut self) -> (f32, f32) {
-        let u1 = 1.0 - self.next_uniform_f32();
+        let u1 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f32();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         let (s, c) = (Self::TWO_PI_F32 * u2).approx_sin_cos();
@@ -38,7 +38,7 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_std_normal_pair_f64(&mut self) -> (f64, f64) {
-        let u1 = 1.0 - self.next_uniform_f64();
+        let u1 = (1.0 - self.next_uniform_f64()).max(f64::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f64();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         let (s, c) = (Self::TWO_PI_F64 * u2).approx_sin_cos();
@@ -125,7 +125,10 @@ impl WyRand {
             let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8];
             let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let ps = fptricks::batch_mul_cols_f32(&r, &s);
@@ -157,7 +160,10 @@ impl WyRand {
             let u2_4 = self.next_f64_4();
             let mut u1 = [0.0f64; 4];
             let mut u2 = [0.0f64; 4];
-            for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
+            for j in 0..4 {
+                u1[j] = (1.0 - u1_4[j]).max(f64::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_4[j];
+            }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
             let ps = fptricks::batch_mul_cols_f64(&r, &s);
@@ -188,7 +194,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
@@ -230,7 +239,10 @@ impl WyRand {
             let offset = i << 3;
             let u1_4 = self.next_f64_4(); let u2_4 = self.next_f64_4();
             let mut u1 = [0.0f64; 4]; let mut u2 = [0.0f64; 4];
-            for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
+            for j in 0..4 {
+                u1[j] = (1.0 - u1_4[j]).max(f64::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_4[j];
+            }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
             let m1 = mode.chunk::<4>(offset); let m2 = mode.chunk::<4>(offset + 4);
@@ -374,7 +386,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
@@ -437,7 +452,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
@@ -500,7 +518,10 @@ impl WyRand {
         for chunk in iter.by_ref() {
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let ps = fptricks::batch_mul_cols_f32(&r, &s);
@@ -533,7 +554,10 @@ impl WyRand {
         for chunk in iter.by_ref() {
             let u1_4 = self.next_f64_4(); let u2_4 = self.next_f64_4();
             let mut u1 = [0.0f64; 4]; let mut u2 = [0.0f64; 4];
-            for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
+            for j in 0..4 {
+                u1[j] = (1.0 - u1_4[j]).max(f64::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_4[j];
+            }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
             let ps = fptricks::batch_mul_cols_f64(&r, &s);
@@ -567,7 +591,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
@@ -612,7 +639,10 @@ impl WyRand {
             let offset = i << 3;
             let u1_4 = self.next_f64_4(); let u2_4 = self.next_f64_4();
             let mut u1 = [0.0f64; 4]; let mut u2 = [0.0f64; 4];
-            for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
+            for j in 0..4 {
+                u1[j] = (1.0 - u1_4[j]).max(f64::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_4[j];
+            }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
             let m1 = mode.chunk::<4>(offset); let m2 = mode.chunk::<4>(offset + 4);
@@ -755,7 +785,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
@@ -819,7 +852,10 @@ impl WyRand {
             let offset = i << 4;
             let u1_8 = self.next_f32_8(); let u2_8 = self.next_f32_8();
             let mut u1 = [0.0f32; 8]; let mut u2 = [0.0f32; 8];
-            for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
+            for j in 0..8 {
+                u1[j] = (1.0 - u1_8[j]).max(f32::MIN_POSITIVE);
+                u2[j] = 1.0 - u2_8[j];
+            }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
             let m1 = mode.chunk::<8>(offset); let m2 = mode.chunk::<8>(offset + 8);
