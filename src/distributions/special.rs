@@ -93,6 +93,10 @@ impl WyRand {
     #[inline(always)]
     pub fn next_poisson_u32(&mut self, lambda: f32) -> u32 {
         if lambda <= 0.0 { return 0; }
+        if lambda > 30.0 {
+            let z = self.next_std_normal_f32();
+            return (z * lambda.approx_sqrt() + lambda).max(0.0) as u32;
+        }
         let l = (-lambda).approx_exp();
         let mut k = 0u32; let mut p = 1.0_f32;
         loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
@@ -102,6 +106,10 @@ impl WyRand {
     #[inline(always)]
     pub fn next_poisson_f64_u32(&mut self, lambda: f64) -> u32 {
         if lambda <= 0.0 { return 0; }
+        if lambda > 30.0 {
+            let z = self.next_std_normal_f64();
+            return (z * lambda.sqrt() + lambda).max(0.0) as u32;
+        }
         let l = (-lambda).approx_exp();
         let mut k = 0u32; let mut p = 1.0_f64;
         loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
@@ -192,9 +200,18 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<8>(i << 3);
-            let thresholds = fptricks::batch_approx_exp_f32([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3],-l_arr[4],-l_arr[5],-l_arr[6],-l_arr[7]]);
+            let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
-                if l_arr[j] <= 0.0 { chunk[j] = 0; continue; }
+                if l_arr[j] > 30.0 {
+                    chunk[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0; // Don't run loop
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            for j in 0..8 {
+                if l_eff[j] <= 0.0 { continue; }
                 let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f32;
                 loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
                 chunk[j] = k - 1;
@@ -214,9 +231,18 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<4>(i << 2);
-            let thresholds = fptricks::batch_approx_exp_f64([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3]]);
+            let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if l_arr[j] <= 0.0 { chunk[j] = 0; continue; }
+                if l_arr[j] > 30.0 {
+                    chunk[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            for j in 0..4 {
+                if l_eff[j] <= 0.0 { continue; }
                 let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f64;
                 loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
                 chunk[j] = k - 1;
@@ -236,11 +262,21 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<8>(i << 3);
-            let thresholds = fptricks::batch_approx_exp_f32([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3],-l_arr[4],-l_arr[5],-l_arr[6],-l_arr[7]]);
-            let mut counts = [0u32; 8]; let mut p = self.next_f32_8();
+            let mut l_eff = [0.0f32; 8];
+            let mut counts = [0u32; 8];
+            for j in 0..8 {
+                if l_arr[j] > 30.0 {
+                    counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let mut p = self.next_f32_8();
             let mut mask = 0u8;
             for j in 0..8 {
-                mask |= ((l_arr[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
+                mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
             }
             while mask != 0 {
                 let mut next_mask = 0u8; let u = self.next_f32_8();
@@ -269,11 +305,21 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<4>(i << 2);
-            let thresholds = fptricks::batch_approx_exp_f64([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3]]);
-            let mut counts = [0u32; 4]; let mut p = self.next_f64_4();
+            let mut l_eff = [0.0f64; 4];
+            let mut counts = [0u32; 4];
+            for j in 0..4 {
+                if l_arr[j] > 30.0 {
+                    counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let mut p = self.next_f64_4();
             let mut mask = 0u8;
             for j in 0..4 {
-                mask |= ((l_arr[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
+                mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
             }
             while mask != 0 {
                 let mut next_mask = 0u8; let u = self.next_f64_4();
@@ -458,9 +504,18 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<8>(i << 3);
-            let thresholds = fptricks::batch_approx_exp_f32([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3],-l_arr[4],-l_arr[5],-l_arr[6],-l_arr[7]]);
+            let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
-                if l_arr[j] <= 0.0 { chunk[j].write(0); continue; }
+                if l_arr[j] > 30.0 {
+                    chunk[j].write((self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32);
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            for j in 0..8 {
+                if l_eff[j] <= 0.0 { continue; }
                 let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f32;
                 loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
                 chunk[j].write(k - 1);
@@ -483,9 +538,18 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<4>(i << 2);
-            let thresholds = fptricks::batch_approx_exp_f64([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3]]);
+            let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if l_arr[j] <= 0.0 { chunk[j].write(0); continue; }
+                if l_arr[j] > 30.0 {
+                    chunk[j].write((self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32);
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            for j in 0..4 {
+                if l_eff[j] <= 0.0 { continue; }
                 let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f64;
                 loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
                 chunk[j].write(k - 1);
@@ -508,10 +572,20 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<8>(i << 3);
-            let thresholds = fptricks::batch_approx_exp_f32([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3],-l_arr[4],-l_arr[5],-l_arr[6],-l_arr[7]]);
-            let mut counts = [0u32; 8]; let mut p = self.next_f32_8();
+            let mut l_eff = [0.0f32; 8];
+            let mut counts = [0u32; 8];
+            for j in 0..8 {
+                if l_arr[j] > 30.0 {
+                    counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let mut p = self.next_f32_8();
             let mut mask = 0u8;
-            for j in 0..8 { mask |= ((l_arr[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
+            for j in 0..8 { mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
             while mask != 0 {
                 let mut next_mask = 0u8; let u = self.next_f32_8();
                 for j in 0..8 {
@@ -541,10 +615,20 @@ impl WyRand {
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<4>(i << 2);
-            let thresholds = fptricks::batch_approx_exp_f64([-l_arr[0],-l_arr[1],-l_arr[2],-l_arr[3]]);
-            let mut counts = [0u32; 4]; let mut p = self.next_f64_4();
+            let mut l_eff = [0.0f64; 4];
+            let mut counts = [0u32; 4];
+            for j in 0..4 {
+                if l_arr[j] > 30.0 {
+                    counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
+                    l_eff[j] = 0.0;
+                } else {
+                    l_eff[j] = l_arr[j];
+                }
+            }
+            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let mut p = self.next_f64_4();
             let mut mask = 0u8;
-            for j in 0..4 { mask |= ((l_arr[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
+            for j in 0..4 { mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
             while mask != 0 {
                 let mut next_mask = 0u8; let u = self.next_f64_4();
                 for j in 0..4 {
