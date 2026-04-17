@@ -9,7 +9,10 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_std_normal_f32(&mut self) -> f32 {
-        let u1 = 1.0 - self.next_uniform_f32();
+        // Clamp u1 away from 0.0: approx_ln(0) is implementation-defined in
+        // fptricks and may not return -∞, producing NaN that poisons the
+        // Marsaglia-Tsang gamma rejection loop (all NaN comparisons are false).
+        let u1 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f32();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         r * (Self::TWO_PI_F32 * u2).approx_cos()
@@ -17,7 +20,8 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_std_normal_f64(&mut self) -> f64 {
-        let u1 = 1.0 - self.next_uniform_f64();
+        // Same guard as the f32 variant — see comment above.
+        let u1 = (1.0 - self.next_uniform_f64()).max(f64::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f64();
         let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
         r * (Self::TWO_PI_F64 * u2).approx_cos()
