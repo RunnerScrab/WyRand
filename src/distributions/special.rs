@@ -124,8 +124,7 @@ impl WyRand {
             let mut u = [0.0f32; 8];
             for j in 0..8 { u[j] = 1.0 - self.next_uniform_f32(); }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u), -2.0, 0.0));
-            let s_chunk = sigma.chunk::<8>(offset);
-            chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &s_chunk));
+            for j in 0..8 { chunk[j] = r[j] * sigma.get(offset + j); }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;

@@ -124,7 +124,17 @@ impl WyRand {
             for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
-            for j in 0..8 { chunk[j << 1] = r[j] * s[j]; chunk[(j << 1) + 1] = r[j] * c[j]; }
+            let ps = fptricks::batch_mul_cols_f32(&r, &s);
+            let pc = fptricks::batch_mul_cols_f32(&r, &c);
+
+            chunk[0] = ps[0]; chunk[1] = pc[0];
+            chunk[2] = ps[1]; chunk[3] = pc[1];
+            chunk[4] = ps[2]; chunk[5] = pc[2];
+            chunk[6] = ps[3]; chunk[7] = pc[3];
+            chunk[8] = ps[4]; chunk[9] = pc[4];
+            chunk[10] = ps[5]; chunk[11] = pc[5];
+            chunk[12] = ps[6]; chunk[13] = pc[6];
+            chunk[14] = ps[7]; chunk[15] = pc[7];
         }
         let rem = iter.into_remainder();
         let mut i = 0;
@@ -146,7 +156,13 @@ impl WyRand {
             for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
-            for j in 0..4 { chunk[j << 1] = r[j] * s[j]; chunk[(j << 1) + 1] = r[j] * c[j]; }
+            let ps = fptricks::batch_mul_cols_f64(&r, &s);
+            let pc = fptricks::batch_mul_cols_f64(&r, &c);
+
+            chunk[0] = ps[0]; chunk[1] = pc[0];
+            chunk[2] = ps[1]; chunk[3] = pc[1];
+            chunk[4] = ps[2]; chunk[5] = pc[2];
+            chunk[6] = ps[3]; chunk[7] = pc[3];
         }
         let rem = iter.into_remainder();
         let mut i = 0;
@@ -175,10 +191,15 @@ impl WyRand {
             let s1 = sigma.chunk::<8>(offset); let s2 = sigma.chunk::<8>(offset + 8);
             let res1 = fptricks::batch_add_cols_f32(&m1, &fptricks::batch_mul_3_cols_f32(&r, &s, &s1));
             let res2 = fptricks::batch_add_cols_f32(&m2, &fptricks::batch_mul_3_cols_f32(&r, &c, &s2));
-            for j in 0..8 {
-                chunk[j << 1] = res1[j];
-                chunk[(j << 1) + 1] = res2[j];
-            }
+            
+            chunk[0] = res1[0]; chunk[1] = res2[0];
+            chunk[2] = res1[1]; chunk[3] = res2[1];
+            chunk[4] = res1[2]; chunk[5] = res2[2];
+            chunk[6] = res1[3]; chunk[7] = res2[3];
+            chunk[8] = res1[4]; chunk[9] = res2[4];
+            chunk[10] = res1[5]; chunk[11] = res2[5];
+            chunk[12] = res1[6]; chunk[13] = res2[6];
+            chunk[14] = res1[7]; chunk[15] = res2[7];
         }
         let rem = iter.into_remainder();
         let offset = limit & !15;
@@ -212,10 +233,11 @@ impl WyRand {
             let s1 = sigma.chunk::<4>(offset); let s2 = sigma.chunk::<4>(offset + 4);
             let res1 = fptricks::batch_add_cols_f64(&m1, &fptricks::batch_mul_3_cols_f64(&r, &s, &s1));
             let res2 = fptricks::batch_add_cols_f64(&m2, &fptricks::batch_mul_3_cols_f64(&r, &c, &s2));
-            for j in 0..4 {
-                chunk[j << 1] = res1[j];
-                chunk[(j << 1) + 1] = res2[j];
-            }
+            
+            chunk[0] = res1[0]; chunk[1] = res2[0];
+            chunk[2] = res1[1]; chunk[3] = res2[1];
+            chunk[4] = res1[2]; chunk[5] = res2[2];
+            chunk[6] = res1[3]; chunk[7] = res2[3];
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -477,7 +499,17 @@ impl WyRand {
             for j in 0..8 { u1[j] = 1.0 - u1_8[j]; u2[j] = 1.0 - u2_8[j]; }
             let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f32(fptricks::batch_fmadd_f32(u2, Self::TWO_PI_F32, 0.0));
-            for j in 0..8 { chunk[j << 1].write(r[j] * s[j]); chunk[(j << 1) + 1].write(r[j] * c[j]); }
+            let ps = fptricks::batch_mul_cols_f32(&r, &s);
+            let pc = fptricks::batch_mul_cols_f32(&r, &c);
+
+            chunk[0].write(ps[0]); chunk[1].write(pc[0]);
+            chunk[2].write(ps[1]); chunk[3].write(pc[1]);
+            chunk[4].write(ps[2]); chunk[5].write(pc[2]);
+            chunk[6].write(ps[3]); chunk[7].write(pc[3]);
+            chunk[8].write(ps[4]); chunk[9].write(pc[4]);
+            chunk[10].write(ps[5]); chunk[11].write(pc[5]);
+            chunk[12].write(ps[6]); chunk[13].write(pc[6]);
+            chunk[14].write(ps[7]); chunk[15].write(pc[7]);
         }
         let rem = iter.into_remainder();
         let mut i = 0;
@@ -500,7 +532,13 @@ impl WyRand {
             for j in 0..4 { u1[j] = 1.0 - u1_4[j]; u2[j] = 1.0 - u2_4[j]; }
             let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u1), -2.0, 0.0));
             let (s, c) = fptricks::batch_approx_sin_cos_f64(fptricks::batch_fmadd_f64(u2, Self::TWO_PI_F64, 0.0));
-            for j in 0..4 { chunk[j << 1].write(r[j] * s[j]); chunk[(j << 1) + 1].write(r[j] * c[j]); }
+            let ps = fptricks::batch_mul_cols_f64(&r, &s);
+            let pc = fptricks::batch_mul_cols_f64(&r, &c);
+
+            chunk[0].write(ps[0]); chunk[1].write(pc[0]);
+            chunk[2].write(ps[1]); chunk[3].write(pc[1]);
+            chunk[4].write(ps[2]); chunk[5].write(pc[2]);
+            chunk[6].write(ps[3]); chunk[7].write(pc[3]);
         }
         let rem = iter.into_remainder();
         let mut i = 0;
@@ -532,10 +570,15 @@ impl WyRand {
             let s1 = sigma.chunk::<8>(offset); let s2 = sigma.chunk::<8>(offset + 8);
             let res1 = fptricks::batch_add_cols_f32(&m1, &fptricks::batch_mul_3_cols_f32(&r, &s, &s1));
             let res2 = fptricks::batch_add_cols_f32(&m2, &fptricks::batch_mul_3_cols_f32(&r, &c, &s2));
-            for j in 0..8 {
-                chunk[j << 1].write(res1[j]);
-                chunk[(j << 1) + 1].write(res2[j]);
-            }
+            
+            chunk[0].write(res1[0]); chunk[1].write(res2[0]);
+            chunk[2].write(res1[1]); chunk[3].write(res2[1]);
+            chunk[4].write(res1[2]); chunk[5].write(res2[2]);
+            chunk[6].write(res1[3]); chunk[7].write(res2[3]);
+            chunk[8].write(res1[4]); chunk[9].write(res2[4]);
+            chunk[10].write(res1[5]); chunk[11].write(res2[5]);
+            chunk[12].write(res1[6]); chunk[13].write(res2[6]);
+            chunk[14].write(res1[7]); chunk[15].write(res2[7]);
         }
         let rem = iter.into_remainder();
         let offset = limit & !15;
@@ -572,10 +615,11 @@ impl WyRand {
             let s1 = sigma.chunk::<4>(offset); let s2 = sigma.chunk::<4>(offset + 4);
             let res1 = fptricks::batch_add_cols_f64(&m1, &fptricks::batch_mul_3_cols_f64(&r, &s, &s1));
             let res2 = fptricks::batch_add_cols_f64(&m2, &fptricks::batch_mul_3_cols_f64(&r, &c, &s2));
-            for j in 0..4 {
-                chunk[j << 1].write(res1[j]);
-                chunk[(j << 1) + 1].write(res2[j]);
-            }
+            
+            chunk[0].write(res1[0]); chunk[1].write(res2[0]);
+            chunk[2].write(res1[1]); chunk[3].write(res2[1]);
+            chunk[4].write(res1[2]); chunk[5].write(res2[2]);
+            chunk[6].write(res1[3]); chunk[7].write(res2[3]);
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
