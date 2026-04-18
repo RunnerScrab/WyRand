@@ -1,5 +1,5 @@
 /// A trait for types that can provide SIMD chunks of parameters.
-/// 
+///
 /// This trait is implemented for scalars (providing a broadcasted chunk) and
 /// slices/vectors/arrays (providing a direct memory load).
 pub trait ParamSource<T: Copy>: Copy {
@@ -14,16 +14,24 @@ pub trait ParamSource<T: Copy>: Copy {
 
 impl ParamSource<f32> for f32 {
     #[inline(always)]
-    fn len(&self) -> usize { usize::MAX }
+    fn len(&self) -> usize {
+        usize::MAX
+    }
     #[inline(always)]
-    fn chunk<const N: usize>(&self, _: usize) -> [f32; N] { [*self; N] }
+    fn chunk<const N: usize>(&self, _: usize) -> [f32; N] {
+        [*self; N]
+    }
     #[inline(always)]
-    fn get(&self, _: usize) -> f32 { *self }
+    fn get(&self, _: usize) -> f32 {
+        *self
+    }
 }
 
 impl<'a> ParamSource<f32> for &'a [f32] {
     #[inline(always)]
-    fn len(&self) -> usize { (self as &[f32]).len() }
+    fn len(&self) -> usize {
+        (self as &[f32]).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
@@ -38,12 +46,16 @@ impl<'a> ParamSource<f32> for &'a [f32] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f32 { self[idx] }
+    fn get(&self, idx: usize) -> f32 {
+        self[idx]
+    }
 }
 
 impl<'a> ParamSource<f32> for &'a Vec<f32> {
     #[inline(always)]
-    fn len(&self) -> usize { (**self).len() }
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
@@ -59,12 +71,16 @@ impl<'a> ParamSource<f32> for &'a Vec<f32> {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f32 { self[idx] }
+    fn get(&self, idx: usize) -> f32 {
+        self[idx]
+    }
 }
 
 impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
     #[inline(always)]
-    fn len(&self) -> usize { LANES }
+    fn len(&self) -> usize {
+        LANES
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f32; N] {
         let mut arr = [0.0; N];
@@ -78,21 +94,31 @@ impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f32 { self[idx] }
+    fn get(&self, idx: usize) -> f32 {
+        self[idx]
+    }
 }
 
 impl ParamSource<f64> for f64 {
     #[inline(always)]
-    fn len(&self) -> usize { usize::MAX }
+    fn len(&self) -> usize {
+        usize::MAX
+    }
     #[inline(always)]
-    fn chunk<const N: usize>(&self, _: usize) -> [f64; N] { [*self; N] }
+    fn chunk<const N: usize>(&self, _: usize) -> [f64; N] {
+        [*self; N]
+    }
     #[inline(always)]
-    fn get(&self, _: usize) -> f64 { *self }
+    fn get(&self, _: usize) -> f64 {
+        *self
+    }
 }
 
 impl<'a> ParamSource<f64> for &'a [f64] {
     #[inline(always)]
-    fn len(&self) -> usize { (self as &[f64]).len() }
+    fn len(&self) -> usize {
+        (self as &[f64]).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
@@ -107,12 +133,16 @@ impl<'a> ParamSource<f64> for &'a [f64] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f64 { self[idx] }
+    fn get(&self, idx: usize) -> f64 {
+        self[idx]
+    }
 }
 
 impl<'a> ParamSource<f64> for &'a Vec<f64> {
     #[inline(always)]
-    fn len(&self) -> usize { (**self).len() }
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
@@ -128,12 +158,16 @@ impl<'a> ParamSource<f64> for &'a Vec<f64> {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f64 { self[idx] }
+    fn get(&self, idx: usize) -> f64 {
+        self[idx]
+    }
 }
 
 impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
     #[inline(always)]
-    fn len(&self) -> usize { LANES }
+    fn len(&self) -> usize {
+        LANES
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [f64; N] {
         let mut arr = [0.0; N];
@@ -147,21 +181,31 @@ impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> f64 { self[idx] }
+    fn get(&self, idx: usize) -> f64 {
+        self[idx]
+    }
 }
 
 impl ParamSource<(f32, f32)> for (f32, f32) {
     #[inline(always)]
-    fn len(&self) -> usize { usize::MAX }
+    fn len(&self) -> usize {
+        usize::MAX
+    }
     #[inline(always)]
-    fn chunk<const N: usize>(&self, _: usize) -> [(f32, f32); N] { [*self; N] }
+    fn chunk<const N: usize>(&self, _: usize) -> [(f32, f32); N] {
+        [*self; N]
+    }
     #[inline(always)]
-    fn get(&self, _: usize) -> (f32, f32) { *self }
+    fn get(&self, _: usize) -> (f32, f32) {
+        *self
+    }
 }
 
 impl<'a> ParamSource<(f32, f32)> for &'a [(f32, f32)] {
     #[inline(always)]
-    fn len(&self) -> usize { (self as &[(f32, f32)]).len() }
+    fn len(&self) -> usize {
+        (self as &[(f32, f32)]).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [(f32, f32); N] {
         let mut arr = [(0.0, 0.0); N];
@@ -176,12 +220,16 @@ impl<'a> ParamSource<(f32, f32)> for &'a [(f32, f32)] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> (f32, f32) { self[idx] }
+    fn get(&self, idx: usize) -> (f32, f32) {
+        self[idx]
+    }
 }
 
 impl<'a> ParamSource<(f32, f32)> for &'a Vec<(f32, f32)> {
     #[inline(always)]
-    fn len(&self) -> usize { (**self).len() }
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [(f32, f32); N] {
         let mut arr = [(0.0, 0.0); N];
@@ -197,21 +245,31 @@ impl<'a> ParamSource<(f32, f32)> for &'a Vec<(f32, f32)> {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> (f32, f32) { self[idx] }
+    fn get(&self, idx: usize) -> (f32, f32) {
+        self[idx]
+    }
 }
 
 impl ParamSource<(f64, f64)> for (f64, f64) {
     #[inline(always)]
-    fn len(&self) -> usize { usize::MAX }
+    fn len(&self) -> usize {
+        usize::MAX
+    }
     #[inline(always)]
-    fn chunk<const N: usize>(&self, _: usize) -> [(f64, f64); N] { [*self; N] }
+    fn chunk<const N: usize>(&self, _: usize) -> [(f64, f64); N] {
+        [*self; N]
+    }
     #[inline(always)]
-    fn get(&self, _: usize) -> (f64, f64) { *self }
+    fn get(&self, _: usize) -> (f64, f64) {
+        *self
+    }
 }
 
 impl<'a> ParamSource<(f64, f64)> for &'a [(f64, f64)] {
     #[inline(always)]
-    fn len(&self) -> usize { (self as &[(f64, f64)]).len() }
+    fn len(&self) -> usize {
+        (self as &[(f64, f64)]).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [(f64, f64); N] {
         let mut arr = [(0.0, 0.0); N];
@@ -226,12 +284,16 @@ impl<'a> ParamSource<(f64, f64)> for &'a [(f64, f64)] {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> (f64, f64) { self[idx] }
+    fn get(&self, idx: usize) -> (f64, f64) {
+        self[idx]
+    }
 }
 
 impl<'a> ParamSource<(f64, f64)> for &'a Vec<(f64, f64)> {
     #[inline(always)]
-    fn len(&self) -> usize { (**self).len() }
+    fn len(&self) -> usize {
+        (**self).len()
+    }
     #[inline(always)]
     fn chunk<const N: usize>(&self, offset: usize) -> [(f64, f64); N] {
         let mut arr = [(0.0, 0.0); N];
@@ -247,5 +309,7 @@ impl<'a> ParamSource<(f64, f64)> for &'a Vec<(f64, f64)> {
         arr
     }
     #[inline(always)]
-    fn get(&self, idx: usize) -> (f64, f64) { self[idx] }
+    fn get(&self, idx: usize) -> (f64, f64) {
+        self[idx]
+    }
 }

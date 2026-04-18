@@ -1,6 +1,6 @@
-use std::mem::MaybeUninit;
 use crate::WyRand;
 use crate::traits::ParamSource;
+use std::mem::MaybeUninit;
 
 impl WyRand {
     #[inline(always)]
@@ -111,7 +111,32 @@ impl WyRand {
             let u = self.next_f32_16();
             chunk.copy_from_slice(&u);
         }
-        for slot in iter.into_remainder() { *slot = self.next_uniform_f32(); }
+        for slot in iter.into_remainder() {
+            *slot = self.next_uniform_f32();
+        }
+    }
+
+    #[inline(always)]
+    pub fn make_filled_uniform_f32<const N: usize>(&mut self) -> [f32; N] {
+        let mut buf = unsafe {
+            MaybeUninit::<[f32; N]>::uninit()
+        };
+
+        let f32_slice: &mut [f32] = unsafe {
+            std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f32, N)
+        };
+
+        let mut iter = f32_slice.chunks_exact_mut(16);
+        
+        for chunk in iter.by_ref() {
+            chunk.copy_from_slice(&self.next_f32_16());
+        }
+
+        for slot in iter.into_remainder() {
+            *slot = self.next_uniform_f32();
+        }
+
+        unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
@@ -121,12 +146,39 @@ impl WyRand {
             let u = self.next_f64_8();
             chunk.copy_from_slice(&u);
         }
-        for slot in iter.into_remainder() { *slot = self.next_uniform_f64(); }
+        for slot in iter.into_remainder() {
+            *slot = self.next_uniform_f64();
+        }
+    }
+
+    #[inline(always)]
+    pub fn make_filled_uniform_f64<const N: usize>(&mut self) -> [f64; N] {
+        let mut buf = unsafe {
+            MaybeUninit::<[f64; N]>::uninit()
+        };
+
+        let f64_slice: &mut [f64] = unsafe {
+            std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f64, N)
+        };
+
+        let mut iter = f64_slice.chunks_exact_mut(8);
+        
+        for chunk in iter.by_ref() {
+            chunk.copy_from_slice(&self.next_f64_8());
+        }
+
+        for slot in iter.into_remainder() {
+            *slot = self.next_uniform_f64();
+        }
+
+        unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn fill_uniform_in_range_f32<MIN, MAX>(&mut self, buf: &mut [f32], min: MIN, max: MAX)
-    where MIN: ParamSource<f32>, MAX: ParamSource<f32>,
+    where
+        MIN: ParamSource<f32>,
+        MAX: ParamSource<f32>,
     {
         let limit = buf.len().min(min.len()).min(max.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -136,7 +188,9 @@ impl WyRand {
             let u = self.next_f32_16();
             let mi = min.chunk::<16>(offset);
             let ma = max.chunk::<16>(offset);
-            for j in 0..16 { chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]); }
+            for j in 0..16 {
+                chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !15;
@@ -147,7 +201,9 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_uniform_in_range_f64<MIN, MAX>(&mut self, buf: &mut [f64], min: MIN, max: MAX)
-    where MIN: ParamSource<f64>, MAX: ParamSource<f64>,
+    where
+        MIN: ParamSource<f64>,
+        MAX: ParamSource<f64>,
     {
         let limit = buf.len().min(min.len()).min(max.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -157,7 +213,9 @@ impl WyRand {
             let u = self.next_f64_8();
             let mi = min.chunk::<8>(offset);
             let ma = max.chunk::<8>(offset);
-            for j in 0..8 { chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]); }
+            for j in 0..8 {
+                chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -170,38 +228,20 @@ impl WyRand {
     // make_filled_* — allocate, fill, and return a [T; N] array (stack)
     // -------------------------------------------------------------------------
 
-    #[inline(always)]
-    pub fn make_filled_uniform_f32<const N: usize>(&mut self) -> [f32; N] {
-        let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
-        let mut iter = slice.chunks_exact_mut(16);
-        for chunk in iter.by_ref() {
-            let u = self.next_f32_16();
-            for j in 0..16 { chunk[j].write(u[j]); }
-        }
-        for slot in iter.into_remainder() { slot.write(self.next_uniform_f32()); }
-        unsafe { buf.assume_init() }
-    }
 
     #[inline(always)]
-    pub fn make_filled_uniform_f64<const N: usize>(&mut self) -> [f64; N] {
-        let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
-        let mut iter = slice.chunks_exact_mut(8);
-        for chunk in iter.by_ref() {
-            let u = self.next_f64_8();
-            for j in 0..8 { chunk[j].write(u[j]); }
-        }
-        for slot in iter.into_remainder() { slot.write(self.next_uniform_f64()); }
-        unsafe { buf.assume_init() }
-    }
-
-    #[inline(always)]
-    pub fn make_filled_uniform_in_range_f32<MIN, MAX, const N: usize>(&mut self, min: MIN, max: MAX) -> [f32; N]
-    where MIN: ParamSource<f32>, MAX: ParamSource<f32>,
+    pub fn make_filled_uniform_in_range_f32<MIN, MAX, const N: usize>(
+        &mut self,
+        min: MIN,
+        max: MAX,
+    ) -> [f32; N]
+    where
+        MIN: ParamSource<f32>,
+        MAX: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
         let limit = slice.len().min(min.len()).min(max.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(16);
@@ -210,7 +250,9 @@ impl WyRand {
             let u = self.next_f32_16();
             let mi = min.chunk::<16>(offset);
             let ma = max.chunk::<16>(offset);
-            for j in 0..16 { chunk[j].write(mi[j] + u[j] * (ma[j] - mi[j])); }
+            for j in 0..16 {
+                chunk[j].write(mi[j] + u[j] * (ma[j] - mi[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !15;
@@ -221,11 +263,18 @@ impl WyRand {
     }
 
     #[inline(always)]
-    pub fn make_filled_uniform_in_range_f64<MIN, MAX, const N: usize>(&mut self, min: MIN, max: MAX) -> [f64; N]
-    where MIN: ParamSource<f64>, MAX: ParamSource<f64>,
+    pub fn make_filled_uniform_in_range_f64<MIN, MAX, const N: usize>(
+        &mut self,
+        min: MIN,
+        max: MAX,
+    ) -> [f64; N]
+    where
+        MIN: ParamSource<f64>,
+        MAX: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
         let limit = slice.len().min(min.len()).min(max.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
@@ -234,7 +283,9 @@ impl WyRand {
             let u = self.next_f64_8();
             let mi = min.chunk::<8>(offset);
             let ma = max.chunk::<8>(offset);
-            for j in 0..8 { chunk[j].write(mi[j] + u[j] * (ma[j] - mi[j])); }
+            for j in 0..8 {
+                chunk[j].write(mi[j] + u[j] * (ma[j] - mi[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -254,7 +305,7 @@ mod tests {
         let mut rng = WyRand::new(1);
         for _ in 0..128 {
             let rv = rng.next_uniform_in_range_f32(1.0, 12.5);
-            assert!(rv >= 1.0 && rv <= 12.5);
+            assert!((1.0..=12.5).contains(&rv));
         }
     }
 
@@ -263,7 +314,7 @@ mod tests {
         let mut rng = WyRand::new(1);
         for _ in 0..128 {
             let rv = rng.next_uniform_f64();
-            assert!(rv >= 0.0 && rv <= 1.0);
+            assert!((0.0..=1.0).contains(&rv));
         }
     }
 

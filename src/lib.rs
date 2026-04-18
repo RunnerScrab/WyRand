@@ -1,17 +1,16 @@
-
 #![allow(unused)]
-pub mod traits;
 pub mod distributions;
+pub mod traits;
 
-pub use traits::ParamSource;
 pub use distributions::*;
+pub use traits::ParamSource;
 
 /// WyRand is a high-performance, non-cryptographic random number generator
 /// designed for scientific simulations and procedural generation.
-/// 
-/// This implementation features a **Unified Generic API** that supports both 
-/// scalar and bulk generation using SIMD-accelerated static dispatch. 
-/// Parameters can be passed as either constants (scalars) or varying columns 
+///
+/// This implementation features a **Unified Generic API** that supports both
+/// scalar and bulk generation using SIMD-accelerated static dispatch.
+/// Parameters can be passed as either constants (scalars) or varying columns
 /// (slices/vectors) without runtime overhead.
 ///
 /// # Examples

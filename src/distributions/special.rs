@@ -1,7 +1,7 @@
-use std::mem::MaybeUninit;
 use crate::WyRand;
 use crate::traits::ParamSource;
 use fptricks::*;
+use std::mem::MaybeUninit;
 
 impl WyRand {
     #[inline(always)]
@@ -9,11 +9,15 @@ impl WyRand {
         let roll = self.next_uniform_f64();
         let kp1 = k + 1.0;
         let kp1lt: u64 = ((kp1.abs() < 1e-9) as u64).wrapping_neg();
-        f64::from_bits(((min * (max/min).approx_powf(roll)).to_bits() & kp1lt) | (!kp1lt & {
-            let min_pow = min.approx_powf(kp1);
-            let max_pow = max.approx_powf(kp1);
-            (roll * (max_pow - min_pow) + min_pow).approx_powf(1.0 / kp1)
-        }.to_bits()))
+        f64::from_bits(
+            ((min * (max / min).approx_powf(roll)).to_bits() & kp1lt)
+                | (!kp1lt & {
+                    let min_pow = min.approx_powf(kp1);
+                    let max_pow = max.approx_powf(kp1);
+                    (roll * (max_pow - min_pow) + min_pow).approx_powf(1.0 / kp1)
+                }
+                .to_bits()),
+        )
     }
 
     #[inline(always)]
@@ -28,7 +32,9 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_gamma_f32(&mut self, alpha: f32) -> f32 {
-        if !(alpha > 0.0) { return 0.0; }
+        if !(alpha > 0.0) {
+            return 0.0;
+        }
         if alpha < 1.0 {
             let u1 = 1.0 - self.next_uniform_f32();
             return self.next_gamma_f32(alpha + 1.0) * (u1.approx_ln() / alpha).approx_exp();
@@ -39,18 +45,26 @@ impl WyRand {
         loop {
             let z = self.next_std_normal_f32();
             let v = 1.0 + c * z;
-            if v <= 0.0 { continue; }
+            if v <= 0.0 {
+                continue;
+            }
             let v = v.approx_powi(3);
             let u = 1.0 - self.next_uniform_f32();
             let z_sq = z * z;
-            if u < 1.0 - 0.0331 * z_sq * z_sq { return d * v; }
-            if u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln()) { return d * v; }
+            if u < 1.0 - 0.0331 * z_sq * z_sq {
+                return d * v;
+            }
+            if u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln()) {
+                return d * v;
+            }
         }
     }
 
     #[inline(always)]
     pub fn next_gamma_f64(&mut self, alpha: f64) -> f64 {
-        if !(alpha > 0.0) { return 0.0; }
+        if !(alpha > 0.0) {
+            return 0.0;
+        }
         if alpha < 1.0 {
             let u1 = 1.0 - self.next_uniform_f64();
             return self.next_gamma_f64(alpha + 1.0) * (u1.approx_ln() / alpha).approx_exp();
@@ -61,59 +75,95 @@ impl WyRand {
         loop {
             let z = self.next_std_normal_f64();
             let v = 1.0 + c * z;
-            if v <= 0.0 { continue; }
+            if v <= 0.0 {
+                continue;
+            }
             let v = v * v * v;
             let u = 1.0 - self.next_uniform_f64();
             let z_sq = z * z;
-            if u < 1.0 - 0.0331 * z_sq * z_sq { return d * v; }
-            if u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln()) { return d * v; }
+            if u < 1.0 - 0.0331 * z_sq * z_sq {
+                return d * v;
+            }
+            if u.approx_ln() < 0.5 * z_sq + d * (1.0 - v + v.approx_ln()) {
+                return d * v;
+            }
         }
     }
 
     #[inline(always)]
     pub fn next_beta_f32(&mut self, alpha: f32, beta: f32) -> f32 {
-        let a = self.next_gamma_f32(alpha); let b = self.next_gamma_f32(beta);
+        let a = self.next_gamma_f32(alpha);
+        let b = self.next_gamma_f32(beta);
         let sum = a + b;
         f32::from_bits((a / sum).to_bits() & ((sum != 0.0) as u32).wrapping_neg())
     }
 
     #[inline(always)]
     pub fn next_beta_f64(&mut self, alpha: f64, beta: f64) -> f64 {
-        let a = self.next_gamma_f64(alpha); let b = self.next_gamma_f64(beta);
+        let a = self.next_gamma_f64(alpha);
+        let b = self.next_gamma_f64(beta);
         let sum = a + b;
         f64::from_bits((a / sum).to_bits() & ((sum != 0.0) as u64).wrapping_neg())
     }
 
     #[inline(always)]
-    pub fn next_chi_squared_f32(&mut self, k: f32) -> f32 { self.next_gamma_f32(k * 0.5) * 2.0 }
+    pub fn next_chi_squared_f32(&mut self, k: f32) -> f32 {
+        self.next_gamma_f32(k * 0.5) * 2.0
+    }
 
     #[inline(always)]
-    pub fn next_chi_squared_f64(&mut self, k: f64) -> f64 { self.next_gamma_f64(k * 0.5) * 2.0 }
+    pub fn next_chi_squared_f64(&mut self, k: f64) -> f64 {
+        self.next_gamma_f64(k * 0.5) * 2.0
+    }
 
     #[inline(always)]
     pub fn next_poisson_u32(&mut self, lambda: f32) -> u32 {
-        if !(lambda > 0.0) { return 0; }
-        if lambda > 30.0 {
-            let z = self.next_std_normal_f32();
-            return (z * lambda.approx_sqrt() + lambda).max(0.0) as u32;
+        //This is not equivalent to lambda <= 0.0 whatever the linter says because of NaN behavior
+        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+        match lambda.partial_cmp(&0.0) {
+            Some(std::cmp::Ordering::Greater) => {
+                if lambda > 30.0 {
+                    let z = self.next_std_normal_f32();
+                    return (z * lambda.approx_sqrt() + lambda).max(0.0) as u32;
+                }
+                let l = (-lambda).approx_exp();
+                let mut k = 0u32;
+                let mut p = 1.0_f32;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f32();
+                    if p <= l {
+                        break;
+                    }
+                }
+                k - 1
+            }
+            _ => {0}
         }
-        let l = (-lambda).approx_exp();
-        let mut k = 0u32; let mut p = 1.0_f32;
-        loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
-        k - 1
     }
 
     #[inline(always)]
     pub fn next_poisson_f64_u32(&mut self, lambda: f64) -> u32 {
-        if !(lambda > 0.0) { return 0; }
-        if lambda > 30.0 {
-            let z = self.next_std_normal_f64();
-            return (z * lambda.sqrt() + lambda).max(0.0) as u32;
+        match lambda.partial_cmp(&0.0) {
+            Some(std::cmp::Ordering::Greater) => {
+                if lambda > 30.0 {
+                    let z = self.next_std_normal_f64();
+                    return (z * lambda.sqrt() + lambda).max(0.0) as u32;
+                }
+                let l = (-lambda).approx_exp();
+                let mut k = 0u32;
+                let mut p = 1.0_f64;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f64();
+                    if p <= l {
+                        break;
+                    }
+                }
+                k - 1
+            }
+            _ => {0}
         }
-        let l = (-lambda).approx_exp();
-        let mut k = 0u32; let mut p = 1.0_f64;
-        loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
-        k - 1
     }
 
     // -------------------------------------------------------------------------
@@ -122,78 +172,111 @@ impl WyRand {
 
     #[inline(always)]
     pub fn fill_rayleigh_f32<S>(&mut self, buf: &mut [f32], sigma: S)
-    where S: ParamSource<f32>,
+    where
+        S: ParamSource<f32>,
     {
         let limit = buf.len().min(sigma.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 3;
-            let mut u = [0.0f32; 8];
-            for j in 0..8 { u[j] = 1.0 - self.next_uniform_f32(); }
-            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u), -2.0, 0.0));
-            for j in 0..8 { chunk[j] = r[j] * sigma.get(offset + j); }
+            let mut u: [f32; 8] = self.make_filled_uniform_f32();
+            (0..8).for_each(|j| {
+                u[j] = 1.0 - u[j];
+            });
+            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
+                fptricks::batch_approx_ln_f32(u),
+                -2.0,
+                0.0,
+            ));
+            for j in 0..8 {
+                chunk[j] = r[j] * sigma.get(offset + j);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_rayleigh_f32(sigma.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_rayleigh_f32(sigma.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_rayleigh_f64<S>(&mut self, buf: &mut [f64], sigma: S)
-    where S: ParamSource<f64>,
+    where
+        S: ParamSource<f64>,
     {
         let limit = buf.len().min(sigma.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 2;
-            let mut u = [0.0f64; 4];
-            for j in 0..4 { u[j] = 1.0 - self.next_uniform_f64(); }
-            let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u), -2.0, 0.0));
+            let mut u: [f64; 4] = self.make_filled_uniform_f64();
+
+            (0..4).for_each(|idx| {
+                u[idx] = 1.0 - u[idx];
+            });
+
+            let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(
+                fptricks::batch_approx_ln_f64(u),
+                -2.0,
+                0.0,
+            ));
             let s_chunk = sigma.chunk::<4>(offset);
             chunk.copy_from_slice(&fptricks::batch_mul_cols_f64(&r, &s_chunk));
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_rayleigh_f64(sigma.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_rayleigh_f64(sigma.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_gamma_f32<A>(&mut self, buf: &mut [f32], alpha: A)
-    where A: ParamSource<f32>,
+    where
+        A: ParamSource<f32>,
     {
         let limit = buf.len().min(alpha.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let a = alpha.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j] = self.next_gamma_f32(a[j]); }
+            for j in 0..8 {
+                chunk[j] = self.next_gamma_f32(a[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_gamma_f32(alpha.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_gamma_f32(alpha.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_gamma_f64<A>(&mut self, buf: &mut [f64], alpha: A)
-    where A: ParamSource<f64>,
+    where
+        A: ParamSource<f64>,
     {
         let limit = buf.len().min(alpha.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let a = alpha.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j] = self.next_gamma_f64(a[j]); }
+            for j in 0..4 {
+                chunk[j] = self.next_gamma_f64(a[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_gamma_f64(alpha.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_gamma_f64(alpha.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_poisson_u32<L>(&mut self, buf: &mut [u32], lambda: L)
-    where L: ParamSource<f32>,
+    where
+        L: ParamSource<f32>,
     {
         let limit = buf.len().min(lambda.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -202,32 +285,48 @@ impl WyRand {
             let l_arr = lambda.chunk::<8>(i << 3);
             let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
+                #[allow(clippy::neg_cmp_op_on_partial_ord)]
                 if !(l_arr[j] > 0.0) {
                     chunk[j] = 0;
-                    l_eff[j] = 0.0;
                 } else if l_arr[j] > 30.0 {
-                    chunk[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
-                    l_eff[j] = 0.0; // Don't run loop
+                    chunk[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j])
+                        .max(0.0) as u32;
                 } else {
                     l_eff[j] = l_arr[j];
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let thresholds = fptricks::batch_approx_exp_f32([
+                -l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6],
+                -l_eff[7],
+            ]);
             for j in 0..8 {
-                if l_eff[j] <= 0.0 { continue; }
-                let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f32;
-                loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
+                if l_eff[j] <= 0.0 {
+                    continue;
+                }
+                let l = thresholds[j];
+                let mut k = 0u32;
+                let mut p = 1.0_f32;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f32();
+                    if p <= l {
+                        break;
+                    }
+                }
                 chunk[j] = k - 1;
             }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_u32(lambda.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_poisson_u32(lambda.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_poisson_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
-    where L: ParamSource<f64>,
+    where
+        L: ParamSource<f64>,
     {
         let limit = buf.len().min(lambda.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -236,32 +335,45 @@ impl WyRand {
             let l_arr = lambda.chunk::<4>(i << 2);
             let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if !(l_arr[j] > 0.0) {
-                    chunk[j] = 0;
-                    l_eff[j] = 0.0;
-                } else if l_arr[j] > 30.0 {
-                    chunk[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                        chunk[j] =
+                            (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let thresholds =
+                fptricks::batch_approx_exp_f64([-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3]]);
             for j in 0..4 {
-                if l_eff[j] <= 0.0 { continue; }
-                let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f64;
-                loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
+                if l_eff[j] <= 0.0 {
+                    continue;
+                }
+                let l = thresholds[j];
+                let mut k = 0u32;
+                let mut p = 1.0_f64;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f64();
+                    if p <= l {
+                        break;
+                    }
+                }
                 chunk[j] = k - 1;
             }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_f64_u32(lambda.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_poisson_f64_u32(lambda.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
-    where L: ParamSource<f32>,
+    where
+        L: ParamSource<f32>,
     {
         let limit = buf.len().min(lambda.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -269,26 +381,27 @@ impl WyRand {
         for (i, chunk) in iter.by_ref().enumerate() {
             let l_arr = lambda.chunk::<8>(i << 3);
             let mut l_eff = [0.0f32; 8];
-            let mut counts = [0u32; 8];
+            let mut counts: [u32; 8] = [0; 8];
             for j in 0..8 {
-                if !(l_arr[j] > 0.0) {
-                    counts[j] = 0;
-                    l_eff[j] = 0.0;
-                } else if l_arr[j] > 30.0 {
-                    counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                        counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j])
+                            .max(0.0) as u32;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let thresholds = fptricks::batch_approx_exp_f32(
+                [-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6], -l_eff[7]]);
             let mut p = self.next_f32_8();
             let mut mask = 0u8;
             for j in 0..8 {
                 mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
             }
             while mask != 0 {
-                let mut next_mask = 0u8; let u = self.next_f32_8();
+                let mut next_mask = 0u8;
+                let u = self.next_f32_8();
                 for j in 0..8 {
                     let active = (mask >> j) & 1;
                     let am: u32 = (active as u32).wrapping_neg();
@@ -302,12 +415,15 @@ impl WyRand {
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_u32(lambda.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_poisson_u32(lambda.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
-    where L: ParamSource<f64>,
+    where
+        L: ParamSource<f64>,
     {
         let limit = buf.len().min(lambda.len());
         let (active, _) = buf.split_at_mut(limit);
@@ -317,21 +433,25 @@ impl WyRand {
             let mut l_eff = [0.0f64; 4];
             let mut counts = [0u32; 4];
             for j in 0..4 {
-                if !(l_arr[j] > 0.0) { counts[j] = 0; l_eff[j] = 0.0; } else if l_arr[j] > 30.0 {
-                    counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                        counts[j] =
+                            (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let thresholds =
+                fptricks::batch_approx_exp_f64([-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3]]);
             let mut p = self.next_f64_4();
             let mut mask = 0u8;
             for j in 0..4 {
                 mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
             }
             while mask != 0 {
-                let mut next_mask = 0u8; let u = self.next_f64_4();
+                let mut next_mask = 0u8;
+                let u = self.next_f64_4();
                 for j in 0..4 {
                     let active = (mask >> j) & 1;
                     let am: u64 = (active as u64).wrapping_neg();
@@ -345,71 +465,97 @@ impl WyRand {
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_f64_u32(lambda.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_poisson_f64_u32(lambda.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_beta_f32<A, B>(&mut self, buf: &mut [f32], alpha: A, beta: B)
-    where A: ParamSource<f32>, B: ParamSource<f32>,
+    where
+        A: ParamSource<f32>,
+        B: ParamSource<f32>,
     {
         let limit = buf.len().min(alpha.len()).min(beta.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
-            let a = alpha.chunk::<8>(i << 3); let b = beta.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j] = self.next_beta_f32(a[j], b[j]); }
+            let a = alpha.chunk::<8>(i << 3);
+            let b = beta.chunk::<8>(i << 3);
+            for j in 0..8 {
+                chunk[j] = self.next_beta_f32(a[j], b[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_beta_f64<A, B>(&mut self, buf: &mut [f64], alpha: A, beta: B)
-    where A: ParamSource<f64>, B: ParamSource<f64>,
+    where
+        A: ParamSource<f64>,
+        B: ParamSource<f64>,
     {
         let limit = buf.len().min(alpha.len()).min(beta.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
-            let a = alpha.chunk::<4>(i << 2); let b = beta.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j] = self.next_beta_f64(a[j], b[j]); }
+            let a = alpha.chunk::<4>(i << 2);
+            let b = beta.chunk::<4>(i << 2);
+            for j in 0..4 {
+                chunk[j] = self.next_beta_f64(a[j], b[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_chi_squared_f32<K>(&mut self, buf: &mut [f32], k: K)
-    where K: ParamSource<f32>,
+    where
+        K: ParamSource<f32>,
     {
         let limit = buf.len().min(k.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let k_arr = k.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j] = self.next_chi_squared_f32(k_arr[j]); }
+            for j in 0..8 {
+                chunk[j] = self.next_chi_squared_f32(k_arr[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_chi_squared_f32(k.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_chi_squared_f32(k.get(offset + i));
+        }
     }
 
     #[inline(always)]
     pub fn fill_chi_squared_f64<K>(&mut self, buf: &mut [f64], k: K)
-    where K: ParamSource<f64>,
+    where
+        K: ParamSource<f64>,
     {
         let limit = buf.len().min(k.len());
         let (active, _) = buf.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let k_arr = k.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j] = self.next_chi_squared_f64(k_arr[j]); }
+            for j in 0..4 {
+                chunk[j] = self.next_chi_squared_f64(k_arr[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_chi_squared_f64(k.get(offset + i)); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_chi_squared_f64(k.get(offset + i));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -418,96 +564,130 @@ impl WyRand {
 
     #[inline(always)]
     pub fn make_filled_rayleigh_f32<S, const N: usize>(&mut self, sigma: S) -> [f32; N]
-    where S: ParamSource<f32>,
+    where
+        S: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f32, N) };
         let limit = slice.len().min(sigma.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 3;
-            let mut u = [0.0f32; 8];
-            for j in 0..8 { u[j] = 1.0 - self.next_uniform_f32(); }
-            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(fptricks::batch_approx_ln_f32(u), -2.0, 0.0));
+            let mut u: [f32; 8] = self.make_filled_uniform_f32();
+            (0..8).for_each(|idx| {
+                u[idx] = 1.0 - u[idx];
+            });
+            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
+                fptricks::batch_approx_ln_f32(u),
+                -2.0,
+                0.0,
+            ));
             let s_chunk = sigma.chunk::<8>(offset);
             let res = fptricks::batch_mul_cols_f32(&r, &s_chunk);
-            for j in 0..8 { chunk[j].write(res[j]); }
+            chunk.copy_from_slice(&res);
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_rayleigh_f32(sigma.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_rayleigh_f32(sigma.get(offset + i));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_rayleigh_f64<S, const N: usize>(&mut self, sigma: S) -> [f64; N]
-    where S: ParamSource<f64>,
+    where
+        S: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f64, N) };
         let limit = slice.len().min(sigma.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 2;
-            let mut u = [0.0f64; 4];
-            for j in 0..4 { u[j] = 1.0 - self.next_uniform_f64(); }
-            let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(fptricks::batch_approx_ln_f64(u), -2.0, 0.0));
+            let mut u: [f64; 4] = self.make_filled_uniform_f64();
+            (0..4).for_each(|idx| {
+                u[idx] = 1.0 - u[idx];
+            });
+            let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(
+                fptricks::batch_approx_ln_f64(u),
+                -2.0,
+                0.0,
+            ));
             let s_chunk = sigma.chunk::<4>(offset);
             let res = fptricks::batch_mul_cols_f64(&r, &s_chunk);
-            for j in 0..4 { chunk[j].write(res[j]); }
+            chunk.copy_from_slice(&res);
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_rayleigh_f64(sigma.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            *slot = self.next_rayleigh_f64(sigma.get(offset + i));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_gamma_f32<A, const N: usize>(&mut self, alpha: A) -> [f32; N]
-    where A: ParamSource<f32>,
+    where
+        A: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
         let limit = slice.len().min(alpha.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let a = alpha.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j].write(self.next_gamma_f32(a[j])); }
+            for j in 0..8 {
+                chunk[j].write(self.next_gamma_f32(a[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_gamma_f32(alpha.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_gamma_f32(alpha.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_gamma_f64<A, const N: usize>(&mut self, alpha: A) -> [f64; N]
-    where A: ParamSource<f64>,
+    where
+        A: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
         let limit = slice.len().min(alpha.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let a = alpha.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j].write(self.next_gamma_f64(a[j])); }
+            for j in 0..4 {
+                chunk[j].write(self.next_gamma_f64(a[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_gamma_f64(alpha.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_gamma_f64(alpha.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_poisson_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
-    where L: ParamSource<f32>,
+    where
+        L: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[u32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
         let limit = slice.len().min(lambda.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
@@ -515,36 +695,57 @@ impl WyRand {
             let l_arr = lambda.chunk::<8>(i << 3);
             let mut l_eff = [0.0f32; 8];
             for j in 0..8 {
-                if !(l_arr[j] > 0.0) {
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                            chunk[j].write(
+                                (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0)
+                                    as u32);
+                        l_eff[j] = 0.0;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
+                }
+                else {
                     chunk[j].write(0);
-                    l_eff[j] = 0.0;
-                } else if l_arr[j] > 30.0 {
-                    chunk[j].write((self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32);
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let thresholds = fptricks::batch_approx_exp_f32([
+                -l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6],
+                -l_eff[7],
+            ]);
             for j in 0..8 {
-                if l_eff[j] <= 0.0 { continue; }
-                let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f32;
-                loop { k += 1; p *= self.next_uniform_f32(); if p <= l { break; } }
+                if l_eff[j] <= 0.0 {
+                    continue;
+                }
+                let l = thresholds[j];
+                let mut k = 0u32;
+                let mut p = 1.0_f32;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f32();
+                    if p <= l {
+                        break;
+                    }
+                }
                 chunk[j].write(k - 1);
             }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_poisson_u32(lambda.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_poisson_u32(lambda.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_poisson_f64_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
-    where L: ParamSource<f64>,
+    where
+        L: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[u32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
         let limit = slice.len().min(lambda.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
@@ -552,36 +753,56 @@ impl WyRand {
             let l_arr = lambda.chunk::<4>(i << 2);
             let mut l_eff = [0.0f64; 4];
             for j in 0..4 {
-                if !(l_arr[j] > 0.0) {
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                        chunk[j].write(
+                            (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32,
+                        );
+                        l_eff[j] = 0.0;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
+                }
+                else {
                     chunk[j].write(0);
                     l_eff[j] = 0.0;
-                } else if l_arr[j] > 30.0 {
-                    chunk[j].write((self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32);
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let thresholds =
+                fptricks::batch_approx_exp_f64([-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3]]);
             for j in 0..4 {
-                if l_eff[j] <= 0.0 { continue; }
-                let l = thresholds[j]; let mut k = 0u32; let mut p = 1.0_f64;
-                loop { k += 1; p *= self.next_uniform_f64(); if p <= l { break; } }
+                if l_eff[j] <= 0.0 {
+                    continue;
+                }
+                let l = thresholds[j];
+                let mut k = 0u32;
+                let mut p = 1.0_f64;
+                loop {
+                    k += 1;
+                    p *= self.next_uniform_f64();
+                    if p <= l {
+                        break;
+                    }
+                }
                 chunk[j].write(k - 1);
             }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_poisson_f64_u32(lambda.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_poisson_f64_u32(lambda.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_poisson_collecting_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
-    where L: ParamSource<f32>,
+    where
+        L: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[u32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
         let limit = slice.len().min(lambda.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
@@ -590,44 +811,63 @@ impl WyRand {
             let mut l_eff = [0.0f32; 8];
             let mut counts = [0u32; 8];
             for j in 0..8 {
-                if !(l_arr[j] > 0.0) {
+                if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
+                    if l_arr[j] > 30.0 {
+                        counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j])
+                            .max(0.0) as u32;
+                        l_eff[j] = 0.0;
+                    } else {
+                        l_eff[j] = l_arr[j];
+                    }
+                } else {
                     counts[j] = 0;
                     l_eff[j] = 0.0;
-                } else if l_arr[j] > 30.0 {
-                    counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
-                    l_eff[j] = 0.0;
-                } else {
-                    l_eff[j] = l_arr[j];
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f32([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3],-l_eff[4],-l_eff[5],-l_eff[6],-l_eff[7]]);
+            let thresholds = fptricks::batch_approx_exp_f32([
+                -l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6],
+                -l_eff[7],
+            ]);
             let mut p = self.next_f32_8();
             let mut mask = 0u8;
-            for j in 0..8 { mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
+            for j in 0..8 {
+                mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
+            }
             while mask != 0 {
-                let mut next_mask = 0u8; let u = self.next_f32_8();
+                let mut next_mask = 0u8;
+                let u = self.next_f32_8();
                 for j in 0..8 {
-                    let act = (mask >> j) & 1; let am: u32 = (act as u32).wrapping_neg();
+                    let act = (mask >> j) & 1;
+                    let am: u32 = (act as u32).wrapping_neg();
                     counts[j] += act as u32;
                     p[j] *= f32::from_bits((u[j].to_bits() & am) | (1.0f32.to_bits() & !am));
                     next_mask |= ((p[j] > thresholds[j]) as u8 & act) << j;
                 }
                 mask = next_mask;
             }
-            for j in 0..8 { chunk[j].write(counts[j]); }
+            for j in 0..8 {
+                chunk[j].write(counts[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_poisson_u32(lambda.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_poisson_u32(lambda.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
-    pub fn make_filled_poisson_collecting_f64_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
-    where L: ParamSource<f64>,
+    pub fn make_filled_poisson_collecting_f64_u32<L, const N: usize>(
+        &mut self,
+        lambda: L,
+    ) -> [u32; N]
+    where
+        L: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[u32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<u32>, N) };
         let limit = slice.len().min(lambda.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
@@ -636,128 +876,180 @@ impl WyRand {
             let mut l_eff = [0.0f64; 4];
             let mut counts = [0u32; 4];
             for j in 0..4 {
-                if !(l_arr[j] > 0.0) { counts[j] = 0; l_eff[j] = 0.0; } else if l_arr[j] > 30.0 {
-                    counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
+                if !(l_arr[j] > 0.0) {
+                    counts[j] = 0;
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
+                    counts[j] = (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j])
+                        .max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
                     l_eff[j] = l_arr[j];
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f64([-l_eff[0],-l_eff[1],-l_eff[2],-l_eff[3]]);
+            let thresholds =
+                fptricks::batch_approx_exp_f64([-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3]]);
             let mut p = self.next_f64_4();
             let mut mask = 0u8;
-            for j in 0..4 { mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j; }
+            for j in 0..4 {
+                mask |= ((l_eff[j] > 0.0) as u8 & (p[j] > thresholds[j]) as u8) << j;
+            }
             while mask != 0 {
-                let mut next_mask = 0u8; let u = self.next_f64_4();
+                let mut next_mask = 0u8;
+                let u = self.next_f64_4();
                 for j in 0..4 {
-                    let act = (mask >> j) & 1; let am: u64 = (act as u64).wrapping_neg();
+                    let act = (mask >> j) & 1;
+                    let am: u64 = (act as u64).wrapping_neg();
                     counts[j] += act as u32;
                     p[j] *= f64::from_bits((u[j].to_bits() & am) | (1.0f64.to_bits() & !am));
                     next_mask |= ((p[j] > thresholds[j]) as u8 & act) << j;
                 }
                 mask = next_mask;
             }
-            for j in 0..4 { chunk[j].write(counts[j]); }
+            for j in 0..4 {
+                chunk[j].write(counts[j]);
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_poisson_f64_u32(lambda.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_poisson_f64_u32(lambda.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_beta_f32<A, B, const N: usize>(&mut self, alpha: A, beta: B) -> [f32; N]
-    where A: ParamSource<f32>, B: ParamSource<f32>,
+    where
+        A: ParamSource<f32>,
+        B: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
         let limit = slice.len().min(alpha.len()).min(beta.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
-            let a = alpha.chunk::<8>(i << 3); let b = beta.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j].write(self.next_beta_f32(a[j], b[j])); }
+            let a = alpha.chunk::<8>(i << 3);
+            let b = beta.chunk::<8>(i << 3);
+            for j in 0..8 {
+                chunk[j].write(self.next_beta_f32(a[j], b[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_beta_f64<A, B, const N: usize>(&mut self, alpha: A, beta: B) -> [f64; N]
-    where A: ParamSource<f64>, B: ParamSource<f64>,
+    where
+        A: ParamSource<f64>,
+        B: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
         let limit = slice.len().min(alpha.len()).min(beta.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
-            let a = alpha.chunk::<4>(i << 2); let b = beta.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j].write(self.next_beta_f64(a[j], b[j])); }
+            let a = alpha.chunk::<4>(i << 2);
+            let b = beta.chunk::<4>(i << 2);
+            for j in 0..4 {
+                chunk[j].write(self.next_beta_f64(a[j], b[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_chi_squared_f32<K, const N: usize>(&mut self, k: K) -> [f32; N]
-    where K: ParamSource<f32>,
+    where
+        K: ParamSource<f32>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
         let limit = slice.len().min(k.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let k_arr = k.chunk::<8>(i << 3);
-            for j in 0..8 { chunk[j].write(self.next_chi_squared_f32(k_arr[j])); }
+            for j in 0..8 {
+                chunk[j].write(self.next_chi_squared_f32(k_arr[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_chi_squared_f32(k.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_chi_squared_f32(k.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 
     #[inline(always)]
     pub fn make_filled_chi_squared_f64<K, const N: usize>(&mut self, k: K) -> [f64; N]
-    where K: ParamSource<f64>,
+    where
+        K: ParamSource<f64>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
-        let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
+        let slice =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
         let limit = slice.len().min(k.len());
         let (active, _) = slice.split_at_mut(limit);
         let mut iter = active.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let k_arr = k.chunk::<4>(i << 2);
-            for j in 0..4 { chunk[j].write(self.next_chi_squared_f64(k_arr[j])); }
+            for j in 0..4 {
+                chunk[j].write(self.next_chi_squared_f64(k_arr[j]));
+            }
         }
         let rem = iter.into_remainder();
         let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() { slot.write(self.next_chi_squared_f64(k.get(offset + i))); }
+        for (i, slot) in rem.iter_mut().enumerate() {
+            slot.write(self.next_chi_squared_f64(k.get(offset + i)));
+        }
         unsafe { buf.assume_init() }
     }
 }
 
 // Helper shims used in the collecting Poisson variants
 #[inline(always)]
-fn still_gt(a: f32, b: f32) -> u8 { (a > b) as u8 }
+fn still_gt(a: f32, b: f32) -> u8 {
+    (a > b) as u8
+}
 #[inline(always)]
-fn still_gt_f64(a: f64, b: f64) -> u8 { (a > b) as u8 }
+fn still_gt_f64(a: f64, b: f64) -> u8 {
+    (a > b) as u8
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn calculate_stats<F>(mut f: F, n: usize) -> (f64, f64)
-    where F: FnMut() -> f64,
+    where
+        F: FnMut() -> f64,
     {
-        let mut sum = 0.0; let mut sq = 0.0;
-        for _ in 0..n { let v = f(); sum += v; sq += v * v; }
-        let m = sum / n as f64; (m, sq / n as f64 - m * m)
+        let mut sum = 0.0;
+        let mut sq = 0.0;
+        for _ in 0..n {
+            let v = f();
+            sum += v;
+            sq += v * v;
+        }
+        let m = sum / n as f64;
+        (m, sq / n as f64 - m * m)
     }
 
     #[test]
@@ -813,9 +1105,15 @@ mod tests {
         for &lambda in &lambdas {
             let mut buf = vec![0u32; n];
             rng.fill_poisson_collecting_u32(&mut buf, lambda);
-            let mut sum = 0.0; let mut sq = 0.0;
-            for &v in &buf { let f = v as f64; sum += f; sq += f * f; }
-            let mean = sum / n as f64; let var = sq / n as f64 - mean * mean;
+            let mut sum = 0.0;
+            let mut sq = 0.0;
+            for &v in &buf {
+                let f = v as f64;
+                sum += f;
+                sq += f * f;
+            }
+            let mean = sum / n as f64;
+            let var = sq / n as f64 - mean * mean;
             let l = lambda as f64;
             assert!((mean - l).abs() < l * 0.15 + 0.05);
             assert!((var - l).abs() < l * 0.15 + 0.1);
@@ -851,10 +1149,12 @@ mod tests {
         // Verify normal approximation works for high lambda
         let k = rng.next_poisson_u32(100.0);
         assert!(k > 50 && k < 150);
-        
+
         let mut buf = [0u32; 16];
         rng.fill_poisson_u32(&mut buf, 100.0);
-        for &k in &buf { assert!(k > 0); }
+        for &k in &buf {
+            assert!(k > 0);
+        }
     }
 
     #[test]
@@ -863,17 +1163,25 @@ mod tests {
         let mut buf = [0u32; 10];
         let nan_f32 = [f32::NAN; 10];
         let nan_f64 = [f64::NAN; 10];
-        
+
         rng.fill_poisson_collecting_u32(&mut buf, &nan_f32);
-        for &k in &buf { assert_eq!(k, 0); }
-        
+        for &k in &buf {
+            assert_eq!(k, 0);
+        }
+
         rng.fill_poisson_collecting_f64_u32(&mut buf, &nan_f64);
-        for &k in &buf { assert_eq!(k, 0); }
-        
+        for &k in &buf {
+            assert_eq!(k, 0);
+        }
+
         let res: [u32; 10] = rng.make_filled_poisson_collecting_u32(&nan_f32);
-        for &k in &res { assert_eq!(k, 0); }
-        
+        for &k in &res {
+            assert_eq!(k, 0);
+        }
+
         let res: [u32; 10] = rng.make_filled_poisson_collecting_f64_u32(&nan_f64);
-        for &k in &res { assert_eq!(k, 0); }
+        for &k in &res {
+            assert_eq!(k, 0);
+        }
     }
 }
