@@ -271,7 +271,10 @@ impl WyRand {
             let mut l_eff = [0.0f32; 8];
             let mut counts = [0u32; 8];
             for j in 0..8 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    counts[j] = 0;
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
@@ -314,7 +317,7 @@ impl WyRand {
             let mut l_eff = [0.0f64; 4];
             let mut counts = [0u32; 4];
             for j in 0..4 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) { counts[j] = 0; l_eff[j] = 0.0; } else if l_arr[j] > 30.0 {
                     counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
@@ -587,7 +590,10 @@ impl WyRand {
             let mut l_eff = [0.0f32; 8];
             let mut counts = [0u32; 8];
             for j in 0..8 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) {
+                    counts[j] = 0;
+                    l_eff[j] = 0.0;
+                } else if l_arr[j] > 30.0 {
                     counts[j] = (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
@@ -630,7 +636,7 @@ impl WyRand {
             let mut l_eff = [0.0f64; 4];
             let mut counts = [0u32; 4];
             for j in 0..4 {
-                if l_arr[j] > 30.0 {
+                if !(l_arr[j] > 0.0) { counts[j] = 0; l_eff[j] = 0.0; } else if l_arr[j] > 30.0 {
                     counts[j] = (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32;
                     l_eff[j] = 0.0;
                 } else {
@@ -849,5 +855,25 @@ mod tests {
         let mut buf = [0u32; 16];
         rng.fill_poisson_u32(&mut buf, 100.0);
         for &k in &buf { assert!(k > 0); }
+    }
+
+    #[test]
+    fn test_bulk_poisson_stability() {
+        let mut rng = WyRand::new(42);
+        let mut buf = [0u32; 10];
+        let nan_f32 = [f32::NAN; 10];
+        let nan_f64 = [f64::NAN; 10];
+        
+        rng.fill_poisson_collecting_u32(&mut buf, &nan_f32);
+        for &k in &buf { assert_eq!(k, 0); }
+        
+        rng.fill_poisson_collecting_f64_u32(&mut buf, &nan_f64);
+        for &k in &buf { assert_eq!(k, 0); }
+        
+        let res: [u32; 10] = rng.make_filled_poisson_collecting_u32(&nan_f32);
+        for &k in &res { assert_eq!(k, 0); }
+        
+        let res: [u32; 10] = rng.make_filled_poisson_collecting_f64_u32(&nan_f64);
+        for &k in &res { assert_eq!(k, 0); }
     }
 }
