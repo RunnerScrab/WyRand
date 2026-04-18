@@ -14,7 +14,7 @@ impl WyRand {
         // Marsaglia-Tsang gamma rejection loop (all NaN comparisons are false).
         let u1 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f32();
-        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let r = (-u1.approx_ln() * 2.0).approx_sqrt();
         r * (Self::TWO_PI_F32 * u2).approx_cos()
     }
 
@@ -23,7 +23,7 @@ impl WyRand {
         // Same guard as the f32 variant — see comment above.
         let u1 = (1.0 - self.next_uniform_f64()).max(f64::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f64();
-        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let r = (-u1.approx_ln() * 2.0).approx_sqrt();
         r * (Self::TWO_PI_F64 * u2).approx_cos()
     }
 
@@ -31,7 +31,7 @@ impl WyRand {
     pub fn next_std_normal_pair_f32(&mut self) -> (f32, f32) {
         let u1 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f32();
-        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let r = (-u1.approx_ln() * 2.0).approx_sqrt();
         let (s, c) = (Self::TWO_PI_F32 * u2).approx_sin_cos();
         (r * s, r * c)
     }
@@ -40,7 +40,7 @@ impl WyRand {
     pub fn next_std_normal_pair_f64(&mut self) -> (f64, f64) {
         let u1 = (1.0 - self.next_uniform_f64()).max(f64::MIN_POSITIVE);
         let u2 = 1.0 - self.next_uniform_f64();
-        let r = (-u1.approx_ln().fast_mul2()).approx_sqrt();
+        let r = (-u1.approx_ln() * 2.0).approx_sqrt();
         let (s, c) = (Self::TWO_PI_F64 * u2).approx_sin_cos();
         (r * s, r * c)
     }
@@ -105,12 +105,12 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_isotropic_polar_angle_f32(&mut self) -> f32 {
-        (1.0 - self.next_uniform_f32().fast_mul2()).approx_acos()
+        (1.0 - self.next_uniform_f32() * 2.0).approx_acos()
     }
 
     #[inline(always)]
     pub fn next_isotropic_polar_angle_f64(&mut self) -> f64 {
-        (1.0 - self.next_uniform_f64().fast_mul2()).approx_acos()
+        (1.0 - self.next_uniform_f64() * 2.0).approx_acos()
     }
 
     // -------------------------------------------------------------------------

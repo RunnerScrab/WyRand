@@ -18,12 +18,12 @@ impl WyRand {
 
     #[inline(always)]
     pub fn next_rayleigh_f32(&mut self, sigma: f32) -> f32 {
-        (-( 1.0 - self.next_uniform_f32()).approx_ln().fast_mul2()).approx_sqrt() * sigma
+        (-(1.0 - self.next_uniform_f32()).approx_ln() * 2.0).approx_sqrt() * sigma
     }
 
     #[inline(always)]
     pub fn next_rayleigh_f64(&mut self, sigma: f64) -> f64 {
-        (-(1.0 - self.next_uniform_f64()).approx_ln().fast_mul2()).approx_sqrt() * sigma
+        (-(1.0 - self.next_uniform_f64()).approx_ln() * 2.0).approx_sqrt() * sigma
     }
 
     #[inline(always)]
@@ -85,10 +85,10 @@ impl WyRand {
     }
 
     #[inline(always)]
-    pub fn next_chi_squared_f32(&mut self, k: f32) -> f32 { self.next_gamma_f32(k * 0.5).fast_mul2() }
+    pub fn next_chi_squared_f32(&mut self, k: f32) -> f32 { self.next_gamma_f32(k * 0.5) * 2.0 }
 
     #[inline(always)]
-    pub fn next_chi_squared_f64(&mut self, k: f64) -> f64 { self.next_gamma_f64(k * 0.5).fast_mul2() }
+    pub fn next_chi_squared_f64(&mut self, k: f64) -> f64 { self.next_gamma_f64(k * 0.5) * 2.0 }
 
     #[inline(always)]
     pub fn next_poisson_u32(&mut self, lambda: f32) -> u32 {
