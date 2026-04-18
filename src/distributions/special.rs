@@ -120,7 +120,7 @@ impl WyRand {
     // fill_* — write into caller-owned slice (heap-friendly, runtime length)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_rayleigh_f32<S>(&mut self, buf: &mut [f32], sigma: S)
     where S: ParamSource<f32>,
     {
@@ -139,7 +139,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_rayleigh_f32(sigma.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_rayleigh_f64<S>(&mut self, buf: &mut [f64], sigma: S)
     where S: ParamSource<f64>,
     {
@@ -159,7 +159,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_rayleigh_f64(sigma.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_gamma_f32<A>(&mut self, buf: &mut [f32], alpha: A)
     where A: ParamSource<f32>,
     {
@@ -175,7 +175,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_gamma_f32(alpha.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_gamma_f64<A>(&mut self, buf: &mut [f64], alpha: A)
     where A: ParamSource<f64>,
     {
@@ -191,7 +191,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_gamma_f64(alpha.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_poisson_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where L: ParamSource<f32>,
     {
@@ -225,7 +225,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_u32(lambda.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_poisson_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where L: ParamSource<f64>,
     {
@@ -259,7 +259,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_f64_u32(lambda.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where L: ParamSource<f32>,
     {
@@ -305,7 +305,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_u32(lambda.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where L: ParamSource<f64>,
     {
@@ -348,7 +348,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_poisson_f64_u32(lambda.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_beta_f32<A, B>(&mut self, buf: &mut [f32], alpha: A, beta: B)
     where A: ParamSource<f32>, B: ParamSource<f32>,
     {
@@ -364,7 +364,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_beta_f32(alpha.get(offset + i), beta.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_beta_f64<A, B>(&mut self, buf: &mut [f64], alpha: A, beta: B)
     where A: ParamSource<f64>, B: ParamSource<f64>,
     {
@@ -380,7 +380,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_beta_f64(alpha.get(offset + i), beta.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_chi_squared_f32<K>(&mut self, buf: &mut [f32], k: K)
     where K: ParamSource<f32>,
     {
@@ -396,7 +396,7 @@ impl WyRand {
         for (i, slot) in rem.iter_mut().enumerate() { *slot = self.next_chi_squared_f32(k.get(offset + i)); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_chi_squared_f64<K>(&mut self, buf: &mut [f64], k: K)
     where K: ParamSource<f64>,
     {
@@ -416,7 +416,7 @@ impl WyRand {
     // make_filled_* — allocate, fill, and return a [T; N] array (stack)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_rayleigh_f32<S, const N: usize>(&mut self, sigma: S) -> [f32; N]
     where S: ParamSource<f32>,
     {
@@ -440,7 +440,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_rayleigh_f64<S, const N: usize>(&mut self, sigma: S) -> [f64; N]
     where S: ParamSource<f64>,
     {
@@ -464,7 +464,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_gamma_f32<A, const N: usize>(&mut self, alpha: A) -> [f32; N]
     where A: ParamSource<f32>,
     {
@@ -483,7 +483,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_gamma_f64<A, const N: usize>(&mut self, alpha: A) -> [f64; N]
     where A: ParamSource<f64>,
     {
@@ -502,7 +502,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_poisson_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
     where L: ParamSource<f32>,
     {
@@ -539,7 +539,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_poisson_f64_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
     where L: ParamSource<f64>,
     {
@@ -576,7 +576,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_poisson_collecting_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
     where L: ParamSource<f32>,
     {
@@ -622,7 +622,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_poisson_collecting_f64_u32<L, const N: usize>(&mut self, lambda: L) -> [u32; N]
     where L: ParamSource<f64>,
     {
@@ -665,7 +665,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_beta_f32<A, B, const N: usize>(&mut self, alpha: A, beta: B) -> [f32; N]
     where A: ParamSource<f32>, B: ParamSource<f32>,
     {
@@ -684,7 +684,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_beta_f64<A, B, const N: usize>(&mut self, alpha: A, beta: B) -> [f64; N]
     where A: ParamSource<f64>, B: ParamSource<f64>,
     {
@@ -703,7 +703,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_chi_squared_f32<K, const N: usize>(&mut self, k: K) -> [f32; N]
     where K: ParamSource<f32>,
     {
@@ -722,7 +722,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_chi_squared_f64<K, const N: usize>(&mut self, k: K) -> [f64; N]
     where K: ParamSource<f64>,
     {

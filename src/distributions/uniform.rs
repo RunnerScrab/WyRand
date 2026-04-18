@@ -104,7 +104,7 @@ impl WyRand {
     // fill_* — write into caller-owned slice (heap-friendly, runtime length)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_uniform_f32(&mut self, buf: &mut [f32]) {
         let mut iter = buf.chunks_exact_mut(16);
         for chunk in iter.by_ref() {
@@ -114,7 +114,7 @@ impl WyRand {
         for slot in iter.into_remainder() { *slot = self.next_uniform_f32(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_uniform_f64(&mut self, buf: &mut [f64]) {
         let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
@@ -124,7 +124,7 @@ impl WyRand {
         for slot in iter.into_remainder() { *slot = self.next_uniform_f64(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_uniform_in_range_f32<MIN, MAX>(&mut self, buf: &mut [f32], min: MIN, max: MAX)
     where MIN: ParamSource<f32>, MAX: ParamSource<f32>,
     {
@@ -145,7 +145,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_uniform_in_range_f64<MIN, MAX>(&mut self, buf: &mut [f64], min: MIN, max: MAX)
     where MIN: ParamSource<f64>, MAX: ParamSource<f64>,
     {
@@ -170,7 +170,7 @@ impl WyRand {
     // make_filled_* — allocate, fill, and return a [T; N] array (stack)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_uniform_f32<const N: usize>(&mut self) -> [f32; N] {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
@@ -183,7 +183,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_uniform_f64<const N: usize>(&mut self) -> [f64; N] {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
         let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
@@ -196,7 +196,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_uniform_in_range_f32<MIN, MAX, const N: usize>(&mut self, min: MIN, max: MAX) -> [f32; N]
     where MIN: ParamSource<f32>, MAX: ParamSource<f32>,
     {
@@ -220,7 +220,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_uniform_in_range_f64<MIN, MAX, const N: usize>(&mut self, min: MIN, max: MAX) -> [f64; N]
     where MIN: ParamSource<f64>, MAX: ParamSource<f64>,
     {

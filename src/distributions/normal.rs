@@ -117,7 +117,7 @@ impl WyRand {
     // fill_* — write into caller-owned slice (heap-friendly, runtime length)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_std_normal_f32(&mut self, buf: &mut [f32]) {
         let mut iter = buf.chunks_exact_mut(16);
         for chunk in iter.by_ref() {
@@ -152,7 +152,7 @@ impl WyRand {
         if i < rem.len() { rem[i] = self.next_std_normal_f32(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_std_normal_f64(&mut self, buf: &mut [f64]) {
         let mut iter = buf.chunks_exact_mut(8);
         for chunk in iter.by_ref() {
@@ -183,7 +183,7 @@ impl WyRand {
         if i < rem.len() { rem[i] = self.next_std_normal_f64(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_normal_f32<M, S>(&mut self, buf: &mut [f32], mode: M, sigma: S)
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -228,7 +228,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_normal_f64<M, S>(&mut self, buf: &mut [f64], mode: M, sigma: S)
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -269,7 +269,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_normal_w_clamped_err_f32<M, S, L>(&mut self, buf: &mut [f32], mode: M, sigma: S, limit: L)
     where M: ParamSource<f32>, S: ParamSource<f32>, L: ParamSource<f32>,
     {
@@ -292,7 +292,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_normal_w_clamped_err_f64<M, S, L>(&mut self, buf: &mut [f64], mode: M, sigma: S, limit: L)
     where M: ParamSource<f64>, S: ParamSource<f64>, L: ParamSource<f64>,
     {
@@ -315,7 +315,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_ln_normal_f32<M, S>(&mut self, buf: &mut [f32], ln_mode: M, sigma_ln: S)
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -330,7 +330,7 @@ impl WyRand {
         for val in iter.into_remainder() { *val = val.approx_exp(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_ln_normal_f64<M, S>(&mut self, buf: &mut [f64], ln_mode: M, sigma_ln: S)
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -345,7 +345,7 @@ impl WyRand {
         for val in iter.into_remainder() { *val = val.approx_exp(); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_log10_normal_f32<M, S>(&mut self, buf: &mut [f32], log_mode: M, sigma_log: S)
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -360,7 +360,7 @@ impl WyRand {
         for val in iter.into_remainder() { *val = 10.0_f32.powf(*val); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_log10_normal_f64<M, S>(&mut self, buf: &mut [f64], log_mode: M, sigma_log: S)
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -375,7 +375,7 @@ impl WyRand {
         for val in iter.into_remainder() { *val = 10.0_f64.powf(*val); }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_split_normal_f32<M, SLO, SHI>(&mut self, buf: &mut [f32], mode: M, sigma_lo: SLO, sigma_hi: SHI)
     where M: ParamSource<f32>, SLO: ParamSource<f32>, SHI: ParamSource<f32>,
     {
@@ -417,7 +417,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_split_normal_f64<M, SLO, SHI>(&mut self, buf: &mut [f64], mode: M, sigma_lo: SLO, sigma_hi: SHI)
     where M: ParamSource<f64>, SLO: ParamSource<f64>, SHI: ParamSource<f64>,
     {
@@ -441,7 +441,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_split_normal_stuple_f32<M, T>(&mut self, buf: &mut [f32], mode: M, table: T)
     where M: ParamSource<f32>, T: ParamSource<(f32, f32)>,
     {
@@ -479,7 +479,7 @@ impl WyRand {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn fill_split_normal_stuple_f64<M, T>(&mut self, buf: &mut [f64], mode: M, table: T)
     where M: ParamSource<f64>, T: ParamSource<(f64, f64)>,
     {
@@ -510,7 +510,7 @@ impl WyRand {
     // make_filled_* — allocate, fill, and return a [T; N] array (stack)
     // -------------------------------------------------------------------------
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_std_normal_f32<const N: usize>(&mut self) -> [f32; N] {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
@@ -546,7 +546,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_std_normal_f64<const N: usize>(&mut self) -> [f64; N] {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
         let slice = unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
@@ -578,7 +578,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_normal_f32<M, S, const N: usize>(&mut self, mode: M, sigma: S) -> [f32; N]
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -626,7 +626,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_normal_f64<M, S, const N: usize>(&mut self, mode: M, sigma: S) -> [f64; N]
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -670,7 +670,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_normal_w_clamped_err_f32<M, S, L, const N: usize>(&mut self, mode: M, sigma: S, limit: L) -> [f32; N]
     where M: ParamSource<f32>, S: ParamSource<f32>, L: ParamSource<f32>,
     {
@@ -693,7 +693,7 @@ impl WyRand {
         z
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_normal_w_clamped_err_f64<M, S, L, const N: usize>(&mut self, mode: M, sigma: S, limit: L) -> [f64; N]
     where M: ParamSource<f64>, S: ParamSource<f64>, L: ParamSource<f64>,
     {
@@ -716,7 +716,7 @@ impl WyRand {
         z
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_ln_normal_f32<M, S, const N: usize>(&mut self, ln_mode: M, sigma_ln: S) -> [f32; N]
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -730,7 +730,7 @@ impl WyRand {
         arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_ln_normal_f64<M, S, const N: usize>(&mut self, ln_mode: M, sigma_ln: S) -> [f64; N]
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -744,7 +744,7 @@ impl WyRand {
         arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_log10_normal_f32<M, S, const N: usize>(&mut self, log_mode: M, sigma_log: S) -> [f32; N]
     where M: ParamSource<f32>, S: ParamSource<f32>,
     {
@@ -758,7 +758,7 @@ impl WyRand {
         arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_log10_normal_f64<M, S, const N: usize>(&mut self, log_mode: M, sigma_log: S) -> [f64; N]
     where M: ParamSource<f64>, S: ParamSource<f64>,
     {
@@ -772,7 +772,7 @@ impl WyRand {
         arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_split_normal_f32<M, SLO, SHI, const N: usize>(&mut self, mode: M, sigma_lo: SLO, sigma_hi: SHI) -> [f32; N]
     where M: ParamSource<f32>, SLO: ParamSource<f32>, SHI: ParamSource<f32>,
     {
@@ -815,7 +815,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_split_normal_f64<M, SLO, SHI, const N: usize>(&mut self, mode: M, sigma_lo: SLO, sigma_hi: SHI) -> [f64; N]
     where M: ParamSource<f64>, SLO: ParamSource<f64>, SHI: ParamSource<f64>,
     {
@@ -839,7 +839,7 @@ impl WyRand {
         arr
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_split_normal_stuple_f32<M, T, const N: usize>(&mut self, mode: M, table: T) -> [f32; N]
     where M: ParamSource<f32>, T: ParamSource<(f32, f32)>,
     {
@@ -880,7 +880,7 @@ impl WyRand {
         unsafe { buf.assume_init() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn make_filled_split_normal_stuple_f64<M, T, const N: usize>(&mut self, mode: M, table: T) -> [f64; N]
     where M: ParamSource<f64>, T: ParamSource<(f64, f64)>,
     {
