@@ -370,8 +370,136 @@ impl WyRand {
         }
     }
 
-    #[inline(always)]
+
+    #[inline]
     pub fn fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
+    where
+        L: ParamSource<f32>,
+    {
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))] 
+        {
+            use core::arch::x86_64::*;
+
+            let limit = buf.len().min(lambda.len());
+            let (active, _) = buf.split_at_mut(limit);
+            let mut iter = active.chunks_exact_mut(8);
+
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let l_arr = lambda.chunk::<8>(i << 3);
+
+                unsafe {
+                    // 1. Load lambda parameters and prepare constants
+                    let l_vec = _mm256_loadu_ps(l_arr.as_ptr());
+                    let zero = _mm256_setzero_ps();
+                    let thirty = _mm256_set1_ps(30.0);
+
+                    // 2. Compute Segment Masks
+                    let gt_zero = _mm256_cmp_ps(l_vec, zero, _CMP_GT_OQ);
+                    let gt_thirty = _mm256_cmp_ps(l_vec, thirty, _CMP_GT_OQ);
+
+                    let normal_mask = _mm256_and_ps(gt_zero, gt_thirty);
+                    let poisson_mask = _mm256_andnot_ps(gt_thirty, gt_zero);
+
+                    let mut normal_counts = _mm256_setzero_si256();
+
+                    // 3. Normal Approximation Branch (lambda > 30.0)
+                    if _mm256_movemask_ps(normal_mask) != 0 {
+                        let norms: [f32; 8] = self.make_filled_std_normal_f32();
+                        let norms_vec = _mm256_loadu_ps(norms.as_ptr());
+
+                        let sqrt_l = _mm256_sqrt_ps(l_vec);
+                        
+                        // --- FMA UPDATE ---
+                        // Calculate: (norms_vec * sqrt_l) + l_vec in a single instruction
+                        let vals = _mm256_fmadd_ps(norms_vec, sqrt_l, l_vec);
+
+                        // .max(0.0) and truncate to 32-bit integer
+                        let vals_max = _mm256_max_ps(vals, zero);
+                        normal_counts = _mm256_cvttps_epi32(vals_max); 
+                    }
+
+                    let mut poisson_counts = _mm256_setzero_si256();
+
+                    // 4. Exact Poisson Branch (0.0 < lambda <= 30.0)
+                    if _mm256_movemask_ps(poisson_mask) != 0 {
+                        let l_eff_vec = _mm256_and_ps(l_vec, poisson_mask);
+
+                        // Negate l_eff_vec inline to construct [-l_eff[0], ...]
+                        let neg_l_eff_vec = _mm256_sub_ps(zero, l_eff_vec);
+                        let mut neg_l_eff_arr = [0.0f32; 8];
+                        _mm256_storeu_ps(neg_l_eff_arr.as_mut_ptr(), neg_l_eff_vec);
+
+                        // Compute batch thresholds
+                        let thresholds_arr = fptricks::batch_approx_exp_f32(neg_l_eff_arr);
+                        let thresholds = _mm256_loadu_ps(thresholds_arr.as_ptr());
+
+                        let p_arr = self.next_f32_8();
+                        let mut p = _mm256_loadu_ps(p_arr.as_ptr());
+
+                        // Initial active mask: l_eff > 0.0 & p > thresholds
+                        let p_gt_thresh = _mm256_cmp_ps(p, thresholds, _CMP_GT_OQ);
+                        let mut active_mask = _mm256_and_ps(poisson_mask, p_gt_thresh);
+
+                        let one = _mm256_set1_ps(1.0);
+
+                        // AVX2 Loop over active bits
+                        while _mm256_movemask_ps(active_mask) != 0 {
+                            // Trick: active_mask evaluates to 0xFFFFFFFF for true.
+                            // Treating it as a signed int and subtracting effectively adds 1.
+                            poisson_counts = _mm256_sub_epi32(
+                                poisson_counts,
+                                _mm256_castps_si256(active_mask)
+                            );
+
+                            let u_arr = self.next_f32_8();
+                            let u = _mm256_loadu_ps(u_arr.as_ptr());
+
+                            // Multiply p by u only if lane is active; else multiply by 1.0
+                            let u_eff = _mm256_blendv_ps(one, u, active_mask);
+                            p = _mm256_mul_ps(p, u_eff);
+
+                            // Update mask: p > thresholds & still active
+                            let still_gt = _mm256_cmp_ps(p, thresholds, _CMP_GT_OQ);
+                            active_mask = _mm256_and_ps(active_mask, still_gt);
+                        }
+                    }
+
+                    // 5. Combine and Store
+                    // Select normal_counts where normal_mask is true, else fallback to poisson_counts
+                    let combined_counts = _mm256_blendv_epi8(
+                        poisson_counts,
+                        normal_counts,
+                        _mm256_castps_si256(normal_mask)
+                    );
+
+                    // Store directly into our chunk's memory footprint
+                    _mm256_storeu_si256(chunk.as_mut_ptr() as *mut __m256i, combined_counts);
+                }
+            }
+
+            // 6. Serial Remainder Handling
+            let rem = iter.into_remainder();
+            let offset = limit & !7;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                *slot = self.next_poisson_u32(lambda.get(offset + i));
+            }
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
+            self.scalar_fill_poisson_collecting_u32(buf, lambda)
+        }
+    }
+
+    #[inline(always)]
+    fn scalar_fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where
         L: ParamSource<f32>,
     {
@@ -419,9 +547,142 @@ impl WyRand {
             *slot = self.next_poisson_u32(lambda.get(offset + i));
         }
     }
-
     #[inline(always)]
     pub fn fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
+    where
+        L: ParamSource<f64>, {
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
+        {
+            #[cfg(target_arch = "x86_64")]
+            use core::arch::x86_64::*;
+
+            let limit = buf.len().min(lambda.len());
+            let (active, _) = buf.split_at_mut(limit);
+            
+            // Chunking by 4 because 4 f64s fit in a 256-bit register
+            let mut iter = active.chunks_exact_mut(4);
+
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let l_arr = lambda.chunk::<4>(i << 2);
+
+                unsafe {
+                    // 1. Load lambda parameters (double precision)
+                    let l_vec = _mm256_loadu_pd(l_arr.as_ptr());
+                    let zero = _mm256_setzero_pd();
+                    let thirty = _mm256_set1_pd(30.0);
+
+                    // 2. Compute Segment Masks
+                    let gt_zero = _mm256_cmp_pd(l_vec, zero, _CMP_GT_OQ);
+                    let gt_thirty = _mm256_cmp_pd(l_vec, thirty, _CMP_GT_OQ);
+
+                    let normal_mask = _mm256_and_pd(gt_zero, gt_thirty);
+                    let poisson_mask = _mm256_andnot_pd(gt_thirty, gt_zero);
+
+                    // _mm256_cvtpd_epi32 creates a 128-bit vector of 4x 32-bit integers
+                    let mut normal_counts_32 = _mm_setzero_si128();
+
+                    // 3. Normal Approximation Branch (lambda > 30.0)
+                    if _mm256_movemask_pd(normal_mask) != 0 {
+                        let norms: [f64; 4] = self.make_filled_std_normal_f64();
+                        let norms_vec = _mm256_loadu_pd(norms.as_ptr());
+
+                        let sqrt_l = _mm256_sqrt_pd(l_vec);
+                        let vals = _mm256_fmadd_pd(norms_vec, sqrt_l, l_vec);
+
+                        let vals_max = _mm256_max_pd(vals, zero);
+                        // Directly truncate 4x f64s into 4x i32s (occupies lower 128 bits)
+                        normal_counts_32 = _mm256_cvtpd_epi32(vals_max); 
+                    }
+
+                    let mut poisson_counts_64 = _mm256_setzero_si256();
+
+                    // 4. Exact Poisson Branch (0.0 < lambda <= 30.0)
+                    if _mm256_movemask_pd(poisson_mask) != 0 {
+                        let l_eff_vec = _mm256_and_pd(l_vec, poisson_mask);
+
+                        let neg_l_eff_vec = _mm256_sub_pd(zero, l_eff_vec);
+                        let mut neg_l_eff_arr = [0.0f64; 4];
+                        _mm256_storeu_pd(neg_l_eff_arr.as_mut_ptr(), neg_l_eff_vec);
+
+                        let thresholds_arr = fptricks::batch_approx_exp_f64(neg_l_eff_arr);
+                        let thresholds = _mm256_loadu_pd(thresholds_arr.as_ptr());
+
+                        let p_arr = self.next_f64_4();
+                        let mut p = _mm256_loadu_pd(p_arr.as_ptr());
+
+                        let p_gt_thresh = _mm256_cmp_pd(p, thresholds, _CMP_GT_OQ);
+                        let mut active_mask = _mm256_and_pd(poisson_mask, p_gt_thresh);
+
+                        let one = _mm256_set1_pd(1.0);
+
+                        while _mm256_movemask_pd(active_mask) != 0 {
+                            // Subtracting a 64-bit mask lane (-1 if true) adds 1 to the count
+                            poisson_counts_64 = _mm256_sub_epi64(
+                                poisson_counts_64,
+                                _mm256_castpd_si256(active_mask)
+                            );
+
+                            let u_arr = self.next_f64_4();
+                            let u = _mm256_loadu_pd(u_arr.as_ptr());
+
+                            let u_eff = _mm256_blendv_pd(one, u, active_mask);
+                            p = _mm256_mul_pd(p, u_eff);
+
+                            let still_gt = _mm256_cmp_pd(p, thresholds, _CMP_GT_OQ);
+                            active_mask = _mm256_and_pd(active_mask, still_gt);
+                        }
+                    }
+
+                    // 5. Blending & Packing
+                    // Zero-extend our 4x 32-bit normal counts to 4x 64-bit counts so we can blend
+                    let normal_counts_64 = _mm256_cvtepi32_epi64(normal_counts_32);
+
+                    let combined_counts_64 = _mm256_blendv_epi8(
+                        poisson_counts_64,
+                        normal_counts_64,
+                        _mm256_castpd_si256(normal_mask)
+                    );
+
+                    // We now have four 64-bit integers. We need to pack them into four 32-bit ints.
+                    // Step 5a: Split the 256-bit register into two 128-bit halves
+                    let lo = _mm256_castsi256_si128(combined_counts_64);     // [C0_64, C1_64]
+                    let hi = _mm256_extracti128_si256(combined_counts_64, 1); // [C2_64, C3_64]
+
+                    // Step 5b: Shuffle the 32-bit blocks inside each half. 
+                    // 0b10_00_10_00 moves the lower 32-bit of each 64-bit int next to each other.
+                    let lo_shuf = _mm_shuffle_epi32(lo, 0b10_00_10_00); // -> [C0_32, C1_32, _, _]
+                    let hi_shuf = _mm_shuffle_epi32(hi, 0b10_00_10_00); // -> [C2_32, C3_32, _, _]
+
+                    // Step 5c: Interleave the two halves together into a single 128-bit register
+                    let packed_32 = _mm_unpacklo_epi64(lo_shuf, hi_shuf); // -> [C0_32, C1_32, C2_32, C3_32]
+
+                    // 6. Store directly to the u32 slice
+                    _mm_storeu_si128(chunk.as_mut_ptr() as *mut __m128i, packed_32);
+                }
+            }
+
+            // 7. Serial Remainder Handling
+            let rem = iter.into_remainder();
+            let offset = limit & !3;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                *slot = self.next_poisson_f64_u32(lambda.get(offset + i));
+            }
+        }
+        #[cfg(not(all(
+        target_arch = "x86_64",
+        target_feature = "avx2",
+        target_feature = "fma"
+        )))]
+        {
+            self.scalar_fill_poisson_collecting_f64_u32(buf, lambda);
+        }
+    }
+    #[inline(always)]
+    pub fn scalar_fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where
         L: ParamSource<f64>,
     {
