@@ -193,7 +193,7 @@ impl WyRand {
                         u[j] = 1.0 - u[j];
                     });
                     let x: __m256 = core::mem::transmute(u);
-                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
+                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_approx_ln_f32(x), ntwos));
                     let s_arr = sigma.chunk::<8>(i << 3);
                     let s: __m256 = core::mem::transmute(s_arr);
                     let c: __m256 = _mm256_mul_ps(r, s);
@@ -260,7 +260,7 @@ impl WyRand {
                         u[idx] = 1.0 - u[idx];
                     });
                     let x: __m256d = core::mem::transmute(u);
-                    let r = _mm256_sqrt_pd(_mm256_mul_pd(fptricks::raw_batch_ln_f64(x), ntwos));
+                    let r = _mm256_sqrt_pd(_mm256_mul_pd(fptricks::raw_batch_approx_ln_f64(x), ntwos));
                     let s_arr = sigma.chunk::<4>(i << 2);
                     let s: __m256d = core::mem::transmute(s_arr);
                     let c: __m256d = _mm256_mul_pd(r, s);
@@ -925,7 +925,7 @@ impl WyRand {
                         u[j] = 1.0 - u[j];
                     });
                     let x: __m256 = core::mem::transmute(u);
-                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
+                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_approx_ln_f32(x), ntwos));
                     let s_arr = sigma.chunk::<8>(i << 3);
                     let s: __m256 = core::mem::transmute(s_arr);
                     let c: __m256 = _mm256_mul_ps(r, s);
@@ -998,7 +998,7 @@ impl WyRand {
                         u[idx] = 1.0 - u[idx];
                     });
                     let x: __m256d = core::mem::transmute(u);
-                    let r = _mm256_sqrt_pd(_mm256_mul_pd(fptricks::raw_batch_ln_f64(x), ntwos));
+                    let r = _mm256_sqrt_pd(_mm256_mul_pd(fptricks::raw_batch_approx_ln_f64(x), ntwos));
                     let s_arr = sigma.chunk::<4>(i << 2);
                     let s: __m256d = core::mem::transmute(s_arr);
                     let c: __m256d = _mm256_mul_pd(r, s);
