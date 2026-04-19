@@ -138,7 +138,7 @@ impl WyRand {
                 }
                 k - 1
             }
-            _ => {0}
+            _ => 0,
         }
     }
 
@@ -162,7 +162,7 @@ impl WyRand {
                 }
                 k - 1
             }
-            _ => {0}
+            _ => 0,
         }
     }
 
@@ -175,65 +175,66 @@ impl WyRand {
     where
         S: ParamSource<f32>,
     {
-
-     #[cfg(all(
+        #[cfg(all(
             target_arch = "x86_64",
             target_feature = "avx2",
             target_feature = "fma"
         ))]
-     {
-         unsafe {
-            use core::arch::x86_64::*;
+        {
+            unsafe {
+                use core::arch::x86_64::*;
+                let limit = buf.len().min(sigma.len());
+                let (active, _) = buf.split_at_mut(limit);
+                let mut iter = active.chunks_exact_mut(8);
+                let ntwos: __m256 = _mm256_set1_ps(-2.0);
+                for (i, chunk) in iter.by_ref().enumerate() {
+                    let mut u = self.make_filled_uniform_f32::<8>();
+                    (0..8).for_each(|j| {
+                        u[j] = 1.0 - u[j];
+                    });
+                    let x: __m256 = core::mem::transmute(u);
+                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
+                    let s_arr = sigma.chunk::<8>(i << 3);
+                    let s: __m256 = core::mem::transmute(s_arr);
+                    let c: __m256 = _mm256_mul_ps(r, s);
+                    _mm256_storeu_ps(chunk.as_mut_ptr(), c);
+                }
+                let rem = iter.into_remainder();
+                let offset = limit & !7;
+                for (i, slot) in rem.iter_mut().enumerate() {
+                    *slot = self.next_rayleigh_f32(sigma.get(offset + i));
+                }
+            }
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
             let limit = buf.len().min(sigma.len());
             let (active, _) = buf.split_at_mut(limit);
             let mut iter = active.chunks_exact_mut(8);
-            let ntwos: __m256 = _mm256_set1_ps(-2.0);
             for (i, chunk) in iter.by_ref().enumerate() {
-                let mut u = self.make_filled_uniform_f32::<8>();
-                (0..8).for_each(|j| { u[j] = 1.0 - u[j]; });
-                let x: __m256 = core::mem::transmute(u); 
-                let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
-                let s_arr = sigma.chunk::<8>(i << 3);
-                let s: __m256 = core::mem::transmute(s_arr); 
-                let c: __m256 = _mm256_mul_ps(r, s);
-                _mm256_storeu_ps(chunk.as_mut_ptr(), c);
+                let offset = i << 3;
+                let mut u: [f32; 8] = self.make_filled_uniform_f32();
+                (0..8).for_each(|j| {
+                    u[j] = 1.0 - u[j];
+                });
+                let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
+                    fptricks::batch_approx_ln_f32(u),
+                    -2.0,
+                    0.0,
+                ));
+                let s_chunk = sigma.chunk::<8>(offset);
+                chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &s_chunk));
             }
             let rem = iter.into_remainder();
             let offset = limit & !7;
             for (i, slot) in rem.iter_mut().enumerate() {
                 *slot = self.next_rayleigh_f32(sigma.get(offset + i));
             }
-         }
-     }
-     #[cfg(not(all(
-            target_arch = "x86_64",
-            target_feature = "avx2",
-            target_feature = "fma"
-        )))]
-     {
-        let limit = buf.len().min(sigma.len());
-        let (active, _) = buf.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
-        for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i << 3;
-            let mut u: [f32; 8] = self.make_filled_uniform_f32();
-            (0..8).for_each(|j| {
-                u[j] = 1.0 - u[j];
-            });
-            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
-                fptricks::batch_approx_ln_f32(u),
-                -2.0,
-                0.0,
-            ));
-            let s_chunk = sigma.chunk::<8>(offset);
-            chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &s_chunk));
         }
-        let rem = iter.into_remainder();
-        let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() {
-            *slot = self.next_rayleigh_f32(sigma.get(offset + i));
-        }
-     }
     }
 
     #[inline(always)]
@@ -241,14 +242,13 @@ impl WyRand {
     where
         S: ParamSource<f64>,
     {
-         #[cfg(all(
-                target_arch = "x86_64",
-                target_feature = "avx2",
-                target_feature = "fma"
-            ))]
-         {
-             unsafe {
-
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
+        {
+            unsafe {
                 use std::arch::x86_64::*;
                 let limit = buf.len().min(sigma.len());
                 let (active, _) = buf.split_at_mut(limit);
@@ -271,15 +271,14 @@ impl WyRand {
                 for (i, slot) in rem.iter_mut().enumerate() {
                     *slot = self.next_rayleigh_f64(sigma.get(offset + i));
                 }
-
-             }
-         }
-         #[cfg(not(all(
-                target_arch = "x86_64",
-                target_feature = "avx2",
-                target_feature = "fma"
-            )))]
-         {
+            }
+        }
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
             let limit = buf.len().min(sigma.len());
             let (active, _) = buf.split_at_mut(limit);
             let mut iter = active.chunks_exact_mut(4);
@@ -304,7 +303,7 @@ impl WyRand {
             for (i, slot) in rem.iter_mut().enumerate() {
                 *slot = self.next_rayleigh_f64(sigma.get(offset + i));
             }
-         }
+        }
     }
 
     #[inline(always)]
@@ -413,8 +412,8 @@ impl WyRand {
             for j in 0..4 {
                 if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
                     if l_arr[j] > 30.0 {
-                        chunk[j] =
-                            (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                        chunk[j] = (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j])
+                            .max(0.0) as u32;
                     } else {
                         l_eff[j] = l_arr[j];
                     }
@@ -446,7 +445,6 @@ impl WyRand {
         }
     }
 
-
     #[inline]
     pub fn fill_poisson_collecting_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where
@@ -456,7 +454,7 @@ impl WyRand {
             target_arch = "x86_64",
             target_feature = "avx2",
             target_feature = "fma"
-        ))] 
+        ))]
         {
             use core::arch::x86_64::*;
 
@@ -488,14 +486,14 @@ impl WyRand {
                         let norms_vec = _mm256_loadu_ps(norms.as_ptr());
 
                         let sqrt_l = _mm256_sqrt_ps(l_vec);
-                        
+
                         // --- FMA UPDATE ---
                         // Calculate: (norms_vec * sqrt_l) + l_vec in a single instruction
                         let vals = _mm256_fmadd_ps(norms_vec, sqrt_l, l_vec);
 
                         // .max(0.0) and truncate to 32-bit integer
                         let vals_max = _mm256_max_ps(vals, zero);
-                        normal_counts = _mm256_cvttps_epi32(vals_max); 
+                        normal_counts = _mm256_cvttps_epi32(vals_max);
                     }
 
                     let mut poisson_counts = _mm256_setzero_si256();
@@ -526,10 +524,8 @@ impl WyRand {
                         while _mm256_movemask_ps(active_mask) != 0 {
                             // Trick: active_mask evaluates to 0xFFFFFFFF for true.
                             // Treating it as a signed int and subtracting effectively adds 1.
-                            poisson_counts = _mm256_sub_epi32(
-                                poisson_counts,
-                                _mm256_castps_si256(active_mask)
-                            );
+                            poisson_counts =
+                                _mm256_sub_epi32(poisson_counts, _mm256_castps_si256(active_mask));
 
                             let u_arr = self.next_f32_8();
                             let u = _mm256_loadu_ps(u_arr.as_ptr());
@@ -549,7 +545,7 @@ impl WyRand {
                     let combined_counts = _mm256_blendv_epi8(
                         poisson_counts,
                         normal_counts,
-                        _mm256_castps_si256(normal_mask)
+                        _mm256_castps_si256(normal_mask),
                     );
 
                     // Store directly into our chunk's memory footprint
@@ -596,8 +592,10 @@ impl WyRand {
                     }
                 }
             }
-            let thresholds = fptricks::batch_approx_exp_f32(
-                [-l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6], -l_eff[7]]);
+            let thresholds = fptricks::batch_approx_exp_f32([
+                -l_eff[0], -l_eff[1], -l_eff[2], -l_eff[3], -l_eff[4], -l_eff[5], -l_eff[6],
+                -l_eff[7],
+            ]);
             let mut p = self.next_f32_8();
             let mut mask = 0u8;
             for j in 0..8 {
@@ -623,10 +621,11 @@ impl WyRand {
             *slot = self.next_poisson_u32(lambda.get(offset + i));
         }
     }
-    #[inline(always)]
+    #[inline]
     pub fn fill_poisson_collecting_f64_u32<L>(&mut self, buf: &mut [u32], lambda: L)
     where
-        L: ParamSource<f64>, {
+        L: ParamSource<f64>,
+    {
         #[cfg(all(
             target_arch = "x86_64",
             target_feature = "avx2",
@@ -638,7 +637,7 @@ impl WyRand {
 
             let limit = buf.len().min(lambda.len());
             let (active, _) = buf.split_at_mut(limit);
-            
+
             // Chunking by 4 because 4 f64s fit in a 256-bit register
             let mut iter = active.chunks_exact_mut(4);
 
@@ -671,7 +670,7 @@ impl WyRand {
 
                         let vals_max = _mm256_max_pd(vals, zero);
                         // Directly truncate 4x f64s into 4x i32s (occupies lower 128 bits)
-                        normal_counts_32 = _mm256_cvtpd_epi32(vals_max); 
+                        normal_counts_32 = _mm256_cvtpd_epi32(vals_max);
                     }
 
                     let mut poisson_counts_64 = _mm256_setzero_si256();
@@ -699,7 +698,7 @@ impl WyRand {
                             // Subtracting a 64-bit mask lane (-1 if true) adds 1 to the count
                             poisson_counts_64 = _mm256_sub_epi64(
                                 poisson_counts_64,
-                                _mm256_castpd_si256(active_mask)
+                                _mm256_castpd_si256(active_mask),
                             );
 
                             let u_arr = self.next_f64_4();
@@ -720,15 +719,15 @@ impl WyRand {
                     let combined_counts_64 = _mm256_blendv_epi8(
                         poisson_counts_64,
                         normal_counts_64,
-                        _mm256_castpd_si256(normal_mask)
+                        _mm256_castpd_si256(normal_mask),
                     );
 
                     // We now have four 64-bit integers. We need to pack them into four 32-bit ints.
                     // Step 5a: Split the 256-bit register into two 128-bit halves
-                    let lo = _mm256_castsi256_si128(combined_counts_64);     // [C0_64, C1_64]
+                    let lo = _mm256_castsi256_si128(combined_counts_64); // [C0_64, C1_64]
                     let hi = _mm256_extracti128_si256(combined_counts_64, 1); // [C2_64, C3_64]
 
-                    // Step 5b: Shuffle the 32-bit blocks inside each half. 
+                    // Step 5b: Shuffle the 32-bit blocks inside each half.
                     // 0b10_00_10_00 moves the lower 32-bit of each 64-bit int next to each other.
                     let lo_shuf = _mm_shuffle_epi32(lo, 0b10_00_10_00); // -> [C0_32, C1_32, _, _]
                     let hi_shuf = _mm_shuffle_epi32(hi, 0b10_00_10_00); // -> [C2_32, C3_32, _, _]
@@ -749,9 +748,9 @@ impl WyRand {
             }
         }
         #[cfg(not(all(
-        target_arch = "x86_64",
-        target_feature = "avx2",
-        target_feature = "fma"
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
         )))]
         {
             self.scalar_fill_poisson_collecting_f64_u32(buf, lambda);
@@ -772,8 +771,8 @@ impl WyRand {
             for j in 0..4 {
                 if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
                     if l_arr[j] > 30.0 {
-                        counts[j] =
-                            (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0) as u32;
+                        counts[j] = (self.next_std_normal_f64() * l_arr[j].approx_sqrt() + l_arr[j])
+                            .max(0.0) as u32;
                     } else {
                         l_eff[j] = l_arr[j];
                     }
@@ -922,11 +921,13 @@ impl WyRand {
                 let ntwos: __m256 = _mm256_set1_ps(-2.0);
                 for (i, chunk) in iter.by_ref().enumerate() {
                     let mut u = self.make_filled_uniform_f32::<8>();
-                    (0..8).for_each(|j| { u[j] = 1.0 - u[j]; });
-                    let x: __m256 = core::mem::transmute(u); 
+                    (0..8).for_each(|j| {
+                        u[j] = 1.0 - u[j];
+                    });
+                    let x: __m256 = core::mem::transmute(u);
                     let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
                     let s_arr = sigma.chunk::<8>(i << 3);
-                    let s: __m256 = core::mem::transmute(s_arr); 
+                    let s: __m256 = core::mem::transmute(s_arr);
                     let c: __m256 = _mm256_mul_ps(r, s);
                     _mm256_storeu_ps(chunk.as_mut_ptr() as *mut f32, c);
                 }
@@ -982,10 +983,10 @@ impl WyRand {
         let (active, _) = slice.split_at_mut(limit);
 
         #[cfg(all(
-                target_arch = "x86_64",
-                target_feature = "avx2",
-                target_feature = "fma"
-            ))]
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
         {
             unsafe {
                 use core::arch::x86_64::*;
@@ -1011,10 +1012,10 @@ impl WyRand {
             }
         }
         #[cfg(not(all(
-                target_arch = "x86_64",
-                target_feature = "avx2",
-                target_feature = "fma"
-            )))]
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
         {
             let mut iter = active.chunks_exact_mut(4);
             for (i, chunk) in iter.by_ref().enumerate() {
@@ -1110,15 +1111,15 @@ impl WyRand {
             for j in 0..8 {
                 if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
                     if l_arr[j] > 30.0 {
-                            chunk[j].write(
-                                (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j]).max(0.0)
-                                    as u32);
+                        chunk[j].write(
+                            (self.next_std_normal_f32() * l_arr[j].approx_sqrt() + l_arr[j])
+                                .max(0.0) as u32,
+                        );
                         l_eff[j] = 0.0;
                     } else {
                         l_eff[j] = l_arr[j];
                     }
-                }
-                else {
+                } else {
                     chunk[j].write(0);
                 }
             }
@@ -1169,14 +1170,14 @@ impl WyRand {
                 if let Some(std::cmp::Ordering::Greater) = l_arr[j].partial_cmp(&0.0) {
                     if l_arr[j] > 30.0 {
                         chunk[j].write(
-                            (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0) as u32,
+                            (self.next_std_normal_f64() * l_arr[j].sqrt() + l_arr[j]).max(0.0)
+                                as u32,
                         );
                         l_eff[j] = 0.0;
                     } else {
                         l_eff[j] = l_arr[j];
                     }
-                }
-                else {
+                } else {
                     chunk[j].write(0);
                     l_eff[j] = 0.0;
                 }
