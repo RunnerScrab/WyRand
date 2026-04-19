@@ -2,7 +2,7 @@
 ///
 /// This trait is implemented for scalars (providing a broadcasted chunk) and
 /// slices/vectors/arrays (providing a direct memory load).
-pub trait ParamSource<T: Copy>: Copy {
+pub trait ParamSource<T: Copy, const L: usize = 0>: Copy {
     /// Returns the length of the source. Scalars return usize::MAX.
     fn len(&self) -> usize;
     /// Returns a chunk of N elements starting at the given offset.
@@ -12,7 +12,7 @@ pub trait ParamSource<T: Copy>: Copy {
     fn get(&self, idx: usize) -> T;
 }
 
-impl ParamSource<f32> for f32 {
+impl<const L: usize> ParamSource<f32, L> for f32 {
     #[inline(always)]
     fn len(&self) -> usize {
         usize::MAX
@@ -27,7 +27,7 @@ impl ParamSource<f32> for f32 {
     }
 }
 
-impl<'a> ParamSource<f32> for &'a [f32] {
+impl<'a> ParamSource<f32, 0> for &'a [f32] {
     #[inline(always)]
     fn len(&self) -> usize {
         (self as &[f32]).len()
@@ -51,7 +51,7 @@ impl<'a> ParamSource<f32> for &'a [f32] {
     }
 }
 
-impl<'a> ParamSource<f32> for &'a Vec<f32> {
+impl<'a> ParamSource<f32, 0> for &'a Vec<f32> {
     #[inline(always)]
     fn len(&self) -> usize {
         (**self).len()
@@ -76,7 +76,7 @@ impl<'a> ParamSource<f32> for &'a Vec<f32> {
     }
 }
 
-impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
+impl<'a, const LANES: usize> ParamSource<f32, LANES> for &'a [f32; LANES] {
     #[inline(always)]
     fn len(&self) -> usize {
         LANES
@@ -99,7 +99,7 @@ impl<'a, const LANES: usize> ParamSource<f32> for &'a [f32; LANES] {
     }
 }
 
-impl ParamSource<f64> for f64 {
+impl<const L: usize> ParamSource<f64, L> for f64 {
     #[inline(always)]
     fn len(&self) -> usize {
         usize::MAX
@@ -114,7 +114,7 @@ impl ParamSource<f64> for f64 {
     }
 }
 
-impl<'a> ParamSource<f64> for &'a [f64] {
+impl<'a> ParamSource<f64, 0> for &'a [f64] {
     #[inline(always)]
     fn len(&self) -> usize {
         (self as &[f64]).len()
@@ -138,7 +138,7 @@ impl<'a> ParamSource<f64> for &'a [f64] {
     }
 }
 
-impl<'a> ParamSource<f64> for &'a Vec<f64> {
+impl<'a> ParamSource<f64, 0> for &'a Vec<f64> {
     #[inline(always)]
     fn len(&self) -> usize {
         (**self).len()
@@ -163,7 +163,7 @@ impl<'a> ParamSource<f64> for &'a Vec<f64> {
     }
 }
 
-impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
+impl<'a, const LANES: usize> ParamSource<f64, LANES> for &'a [f64; LANES] {
     #[inline(always)]
     fn len(&self) -> usize {
         LANES
@@ -186,7 +186,7 @@ impl<'a, const LANES: usize> ParamSource<f64> for &'a [f64; LANES] {
     }
 }
 
-impl ParamSource<(f32, f32)> for (f32, f32) {
+impl<const L: usize> ParamSource<(f32, f32), L> for (f32, f32) {
     #[inline(always)]
     fn len(&self) -> usize {
         usize::MAX
@@ -201,7 +201,7 @@ impl ParamSource<(f32, f32)> for (f32, f32) {
     }
 }
 
-impl<'a> ParamSource<(f32, f32)> for &'a [(f32, f32)] {
+impl<'a> ParamSource<(f32, f32), 0> for &'a [(f32, f32)] {
     #[inline(always)]
     fn len(&self) -> usize {
         (self as &[(f32, f32)]).len()
@@ -225,7 +225,7 @@ impl<'a> ParamSource<(f32, f32)> for &'a [(f32, f32)] {
     }
 }
 
-impl<'a> ParamSource<(f32, f32)> for &'a Vec<(f32, f32)> {
+impl<'a> ParamSource<(f32, f32), 0> for &'a Vec<(f32, f32)> {
     #[inline(always)]
     fn len(&self) -> usize {
         (**self).len()
@@ -250,7 +250,7 @@ impl<'a> ParamSource<(f32, f32)> for &'a Vec<(f32, f32)> {
     }
 }
 
-impl ParamSource<(f64, f64)> for (f64, f64) {
+impl<const L: usize> ParamSource<(f64, f64), L> for (f64, f64) {
     #[inline(always)]
     fn len(&self) -> usize {
         usize::MAX
@@ -265,7 +265,7 @@ impl ParamSource<(f64, f64)> for (f64, f64) {
     }
 }
 
-impl<'a> ParamSource<(f64, f64)> for &'a [(f64, f64)] {
+impl<'a> ParamSource<(f64, f64), 0> for &'a [(f64, f64)] {
     #[inline(always)]
     fn len(&self) -> usize {
         (self as &[(f64, f64)]).len()
@@ -289,7 +289,7 @@ impl<'a> ParamSource<(f64, f64)> for &'a [(f64, f64)] {
     }
 }
 
-impl<'a> ParamSource<(f64, f64)> for &'a Vec<(f64, f64)> {
+impl<'a> ParamSource<(f64, f64), 0> for &'a Vec<(f64, f64)> {
     #[inline(always)]
     fn len(&self) -> usize {
         (**self).len()
@@ -303,6 +303,52 @@ impl<'a> ParamSource<(f64, f64)> for &'a Vec<(f64, f64)> {
             arr.copy_from_slice(&slice[offset..offset + N]);
         } else if offset < len {
             let src = &slice[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
+        arr
+    }
+    #[inline(always)]
+    fn get(&self, idx: usize) -> (f64, f64) {
+        self[idx]
+    }
+}
+
+impl<'a, const LANES: usize> ParamSource<(f32, f32), LANES> for &'a [(f32, f32); LANES] {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        LANES
+    }
+    #[inline(always)]
+    fn chunk<const N: usize>(&self, offset: usize) -> [(f32, f32); N] {
+        let mut arr = [(0.0, 0.0); N];
+        if offset + N <= LANES {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < LANES {
+            let src = &self[offset..];
+            let take = N.min(src.len());
+            arr[..take].copy_from_slice(&src[..take]);
+        }
+        arr
+    }
+    #[inline(always)]
+    fn get(&self, idx: usize) -> (f32, f32) {
+        self[idx]
+    }
+}
+
+impl<'a, const LANES: usize> ParamSource<(f64, f64), LANES> for &'a [(f64, f64); LANES] {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        LANES
+    }
+    #[inline(always)]
+    fn chunk<const N: usize>(&self, offset: usize) -> [(f64, f64); N] {
+        let mut arr = [(0.0, 0.0); N];
+        if offset + N <= LANES {
+            arr.copy_from_slice(&self[offset..offset + N]);
+        } else if offset < LANES {
+            let src = &self[offset..];
             let take = N.min(src.len());
             arr[..take].copy_from_slice(&src[..take]);
         }

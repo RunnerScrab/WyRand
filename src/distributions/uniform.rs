@@ -29,14 +29,14 @@ impl WyRand {
     pub(crate) fn next_f32_16(&mut self) -> [f32; 16] {
         let mut u = [0.0f32; 16];
         let mut s = self.0;
-        for j in 0..16 {
+        (0..16).for_each(|j| {
             s = s.wrapping_add(Self::INC);
             let tmp = (s as u128).wrapping_mul(0xa3b195354a39b70d);
             let m1 = ((tmp >> 64) as u64) ^ (tmp as u64);
             let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
             let rv = ((tmp2 >> 64) as u64) ^ (tmp2 as u64);
             u[j] = f32::from_bits(((rv & Self::FLOAT32_MASK) | 0x3F80_0000) as u32) - 1.0;
-        }
+        });
         self.0 = self.0.wrapping_add(Self::INC << 4);
         u
     }
@@ -45,14 +45,14 @@ impl WyRand {
     pub(crate) fn next_f32_8(&mut self) -> [f32; 8] {
         let mut u = [0.0f32; 8];
         let mut s = self.0;
-        for j in 0..8 {
+        (0..8).for_each(|j| {
             s = s.wrapping_add(Self::INC);
             let tmp = (s as u128).wrapping_mul(0xa3b195354a39b70d);
             let m1 = ((tmp >> 64) as u64) ^ (tmp as u64);
             let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
             let rv = ((tmp2 >> 64) as u64) ^ (tmp2 as u64);
             u[j] = f32::from_bits(((rv & Self::FLOAT32_MASK) | 0x3F80_0000) as u32) - 1.0;
-        }
+        });
         self.0 = self.0.wrapping_add(Self::INC << 3);
         u
     }
@@ -61,14 +61,14 @@ impl WyRand {
     pub(crate) fn next_f64_8(&mut self) -> [f64; 8] {
         let mut u = [0.0f64; 8];
         let mut s = self.0;
-        for j in 0..8 {
+        (0..8).for_each(|j| {
             s = s.wrapping_add(Self::INC);
             let tmp = (s as u128).wrapping_mul(0xa3b195354a39b70d);
             let m1 = ((tmp >> 64) as u64) ^ (tmp as u64);
             let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
             let rv = ((tmp2 >> 64) as u64) ^ (tmp2 as u64);
             u[j] = f64::from_bits((rv >> 12) | 0x3FF0_0000_0000_0000) - 1.0;
-        }
+        });
         self.0 = self.0.wrapping_add(Self::INC << 3);
         u
     }
@@ -77,14 +77,14 @@ impl WyRand {
     pub(crate) fn next_f64_4(&mut self) -> [f64; 4] {
         let mut u = [0.0f64; 4];
         let mut s = self.0;
-        for j in 0..4 {
+        (0..4).for_each(|j| {
             s = s.wrapping_add(Self::INC);
             let tmp = (s as u128).wrapping_mul(0xa3b195354a39b70d);
             let m1 = ((tmp >> 64) as u64) ^ (tmp as u64);
             let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
             let rv = ((tmp2 >> 64) as u64) ^ (tmp2 as u64);
             u[j] = f64::from_bits((rv >> 12) | 0x3FF0_0000_0000_0000) - 1.0;
-        }
+        });
         self.0 = self.0.wrapping_add(Self::INC << 2);
         u
     }
@@ -118,16 +118,13 @@ impl WyRand {
 
     #[inline(always)]
     pub fn make_filled_uniform_f32<const N: usize>(&mut self) -> [f32; N] {
-        let mut buf = unsafe {
-            MaybeUninit::<[f32; N]>::uninit()
-        };
+        let mut buf = unsafe { MaybeUninit::<[f32; N]>::uninit() };
 
-        let f32_slice: &mut [f32] = unsafe {
-            std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f32, N)
-        };
+        let f32_slice: &mut [f32] =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f32, N) };
 
         let mut iter = f32_slice.chunks_exact_mut(16);
-        
+
         for chunk in iter.by_ref() {
             chunk.copy_from_slice(&self.next_f32_16());
         }
@@ -153,16 +150,13 @@ impl WyRand {
 
     #[inline(always)]
     pub fn make_filled_uniform_f64<const N: usize>(&mut self) -> [f64; N] {
-        let mut buf = unsafe {
-            MaybeUninit::<[f64; N]>::uninit()
-        };
+        let mut buf = unsafe { MaybeUninit::<[f64; N]>::uninit() };
 
-        let f64_slice: &mut [f64] = unsafe {
-            std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f64, N)
-        };
+        let f64_slice: &mut [f64] =
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f64, N) };
 
         let mut iter = f64_slice.chunks_exact_mut(8);
-        
+
         for chunk in iter.by_ref() {
             chunk.copy_from_slice(&self.next_f64_8());
         }
@@ -180,22 +174,78 @@ impl WyRand {
         MIN: ParamSource<f32>,
         MAX: ParamSource<f32>,
     {
-        let limit = buf.len().min(min.len()).min(max.len());
-        let (active, _) = buf.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(16);
-        for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i << 4;
-            let u = self.next_f32_16();
-            let mi = min.chunk::<16>(offset);
-            let ma = max.chunk::<16>(offset);
-            for j in 0..16 {
-                chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
+        {
+            unsafe {
+                use core::arch::x86_64::*;
+
+                let limit = buf.len().min(min.len()).min(max.len());
+                let (active, _) = buf.split_at_mut(limit);
+                let mut iter = active.chunks_exact_mut(16);
+
+                for (i, chunk) in iter.by_ref().enumerate() {
+                    let offset = i << 4;
+
+                    // 1. Get 16 random uniforms (as two 8-lane vectors)
+                    let u_raw = self.next_f32_16();
+                    let u1 = _mm256_loadu_ps(u_raw.as_ptr());
+                    let u2 = _mm256_loadu_ps(u_raw.as_ptr().add(8));
+
+                    // 2. Get Min/Max chunks
+                    let mi_raw = min.chunk::<16>(offset);
+                    let ma_raw = max.chunk::<16>(offset);
+
+                    let mi1 = _mm256_loadu_ps(mi_raw.as_ptr());
+                    let mi2 = _mm256_loadu_ps(mi_raw.as_ptr().add(8));
+                    let ma1 = _mm256_loadu_ps(ma_raw.as_ptr());
+                    let ma2 = _mm256_loadu_ps(ma_raw.as_ptr().add(8));
+
+                    // 3. The "Lerp" Sequence: u * (max - min) + min
+                    let diff1 = _mm256_sub_ps(ma1, mi1);
+                    let res1 = fptricks::raw_batch_fmadd_cols_f32(u1, diff1, mi1);
+
+                    let diff2 = _mm256_sub_ps(ma2, mi2);
+                    let res2 = fptricks::raw_batch_fmadd_cols_f32(u2, diff2, mi2);
+
+                    // 4. Direct Store to the output buffer
+                    _mm256_storeu_ps(chunk.as_mut_ptr(), res1);
+                    _mm256_storeu_ps(chunk.as_mut_ptr().add(8), res2);
+                }
+                let rem = iter.into_remainder();
+                let offset = limit & !15;
+                for (i, slot) in rem.iter_mut().enumerate() {
+                    *slot =
+                        self.next_uniform_in_range_f32(min.get(offset + i), max.get(offset + i));
+                }
             }
         }
-        let rem = iter.into_remainder();
-        let offset = limit & !15;
-        for (i, slot) in rem.iter_mut().enumerate() {
-            *slot = self.next_uniform_in_range_f32(min.get(offset + i), max.get(offset + i));
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
+            let limit = buf.len().min(min.len()).min(max.len());
+            let (active, _) = buf.split_at_mut(limit);
+            let mut iter = active.chunks_exact_mut(16);
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let offset = i << 4;
+                let u = self.next_f32_16();
+                let mi = min.chunk::<16>(offset);
+                let ma = max.chunk::<16>(offset);
+                for j in 0..16 {
+                    chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+                }
+            }
+            let rem = iter.into_remainder();
+            let offset = limit & !15;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                *slot = self.next_uniform_in_range_f32(min.get(offset + i), max.get(offset + i));
+            }
         }
     }
 
@@ -205,29 +255,82 @@ impl WyRand {
         MIN: ParamSource<f64>,
         MAX: ParamSource<f64>,
     {
-        let limit = buf.len().min(min.len()).min(max.len());
-        let (active, _) = buf.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
-        for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i << 3;
-            let u = self.next_f64_8();
-            let mi = min.chunk::<8>(offset);
-            let ma = max.chunk::<8>(offset);
-            for j in 0..8 {
-                chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
+        {
+            unsafe {
+                use core::arch::x86_64::*;
+                let limit = buf.len().min(min.len()).min(max.len());
+                let (active, _) = buf.split_at_mut(limit);
+                let mut iter = active.chunks_exact_mut(8);
+                for (i, chunk) in iter.by_ref().enumerate() {
+                    let offset = i << 3;
+
+                    // 1. Get 8 random uniforms (as two 4-lane vectors)
+                    let u_raw = self.next_f64_8();
+                    let u1 = _mm256_loadu_pd(u_raw.as_ptr());
+                    let u2 = _mm256_loadu_pd(u_raw.as_ptr().add(4));
+
+                    // 2. Get Min/Max chunks
+                    let mi_raw = min.chunk::<8>(offset);
+                    let ma_raw = max.chunk::<8>(offset);
+
+                    let mi1 = _mm256_loadu_pd(mi_raw.as_ptr());
+                    let mi2 = _mm256_loadu_pd(mi_raw.as_ptr().add(4));
+                    let ma1 = _mm256_loadu_pd(ma_raw.as_ptr());
+                    let ma2 = _mm256_loadu_pd(ma_raw.as_ptr().add(4));
+
+                    // 3. The "Lerp" Sequence: u * (max - min) + min
+                    let diff1 = _mm256_sub_pd(ma1, mi1);
+                    let res1 = fptricks::raw_batch_fmadd_cols_f64(u1, diff1, mi1);
+
+                    let diff2 = _mm256_sub_pd(ma2, mi2);
+                    let res2 = fptricks::raw_batch_fmadd_cols_f64(u2, diff2, mi2);
+
+                    // 4. Direct Store to the output buffer
+                    _mm256_storeu_pd(chunk.as_mut_ptr(), res1);
+                    _mm256_storeu_pd(chunk.as_mut_ptr().add(4), res2);
+                }
+                let rem = iter.into_remainder();
+                let offset = limit & !7;
+                for (i, slot) in rem.iter_mut().enumerate() {
+                    *slot =
+                        self.next_uniform_in_range_f64(min.get(offset + i), max.get(offset + i));
+                }
             }
         }
-        let rem = iter.into_remainder();
-        let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() {
-            *slot = self.next_uniform_in_range_f64(min.get(offset + i), max.get(offset + i));
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
+            let limit = buf.len().min(min.len()).min(max.len());
+            let (active, _) = buf.split_at_mut(limit);
+            let mut iter = active.chunks_exact_mut(8);
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let offset = i << 3;
+                let u = self.next_f64_8();
+                let mi = min.chunk::<8>(offset);
+                let ma = max.chunk::<8>(offset);
+                for j in 0..8 {
+                    chunk[j] = mi[j] + u[j] * (ma[j] - mi[j]);
+                }
+            }
+            let rem = iter.into_remainder();
+            let offset = limit & !7;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                *slot = self.next_uniform_in_range_f64(min.get(offset + i), max.get(offset + i));
+            }
         }
     }
 
     // -------------------------------------------------------------------------
     // make_filled_* — allocate, fill, and return a [T; N] array (stack)
     // -------------------------------------------------------------------------
-
 
     #[inline(always)]
     pub fn make_filled_uniform_in_range_f32<MIN, MAX, const N: usize>(
@@ -236,15 +339,13 @@ impl WyRand {
         max: MAX,
     ) -> [f32; N]
     where
-        MIN: ParamSource<f32>,
-        MAX: ParamSource<f32>,
+        MIN: ParamSource<f32, N>,
+        MAX: ParamSource<f32, N>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
-        let limit = slice.len().min(min.len()).min(max.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(16);
+        let mut iter = slice.chunks_exact_mut(16);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 4;
             let u = self.next_f32_16();
@@ -255,7 +356,7 @@ impl WyRand {
             }
         }
         let rem = iter.into_remainder();
-        let offset = limit & !15;
+        let offset = N & !15;
         for (i, slot) in rem.iter_mut().enumerate() {
             slot.write(self.next_uniform_in_range_f32(min.get(offset + i), max.get(offset + i)));
         }
@@ -269,15 +370,13 @@ impl WyRand {
         max: MAX,
     ) -> [f64; N]
     where
-        MIN: ParamSource<f64>,
-        MAX: ParamSource<f64>,
+        MIN: ParamSource<f64, N>,
+        MAX: ParamSource<f64, N>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
-        let limit = slice.len().min(min.len()).min(max.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
+        let mut iter = slice.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 3;
             let u = self.next_f64_8();
@@ -288,7 +387,7 @@ impl WyRand {
             }
         }
         let rem = iter.into_remainder();
-        let offset = limit & !7;
+        let offset = N & !7;
         for (i, slot) in rem.iter_mut().enumerate() {
             slot.write(self.next_uniform_in_range_f64(min.get(offset + i), max.get(offset + i)));
         }
@@ -327,5 +426,25 @@ mod tests {
         rng_a.fill_uniform_f32(&mut buf);
         let arr: [f32; 1024] = rng_b.make_filled_uniform_f32();
         assert_eq!(&buf[..], &arr[..]);
+    }
+
+    #[test]
+    fn test_compile_time_safety_logic() {
+        let mut rng = WyRand::new(42);
+        // Scalar works
+        let _: [f32; 10] = rng.make_filled_uniform_in_range_f32(0.0, 1.0);
+        // Exact array works
+        let min = [0.0f32; 10];
+        let max = [1.0f32; 10];
+        let _: [f32; 10] = rng.make_filled_uniform_in_range_f32(&min, &max);
+        
+        // Mismatched array would fail:
+        // let min5 = [0.0f32; 5];
+        // let _: [f32; 10] = rng.make_filled_uniform_in_range_f32(&min5, &max);
+        
+        // Coerced slice in fill works
+        let mut buf = [0.0f32; 20];
+        let min20 = [0.0f32; 20];
+        rng.fill_uniform_in_range_f32(&mut buf, &min20[..], 1.0);
     }
 }

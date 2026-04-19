@@ -862,15 +862,13 @@ impl WyRand {
     #[inline(always)]
     pub fn make_filled_normal_f32<M, S, const N: usize>(&mut self, mode: M, sigma: S) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        S: ParamSource<f32>,
+        M: ParamSource<f32, N>,
+        S: ParamSource<f32, N>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
-        let limit = slice.len().min(mode.len()).min(sigma.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(16);
+        let mut iter = slice.chunks_exact_mut(16);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 4;
             let u1_8 = self.next_f32_8();
@@ -918,7 +916,7 @@ impl WyRand {
             chunk[15].write(res2[7]);
         }
         let rem = iter.into_remainder();
-        let offset = limit & !15;
+        let offset = N & !15;
         let mut i = 0;
         while i + 1 < rem.len() {
             let (s, c) = self.next_std_normal_pair_f32();
@@ -938,15 +936,13 @@ impl WyRand {
     #[inline(always)]
     pub fn make_filled_normal_f64<M, S, const N: usize>(&mut self, mode: M, sigma: S) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        S: ParamSource<f64>,
+        M: ParamSource<f64, N>,
+        S: ParamSource<f64, N>,
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
-        let limit = slice.len().min(mode.len()).min(sigma.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
+        let mut iter = slice.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 3;
             let u1_4 = self.next_f64_4();
@@ -986,7 +982,7 @@ impl WyRand {
             chunk[7].write(res2[3]);
         }
         let rem = iter.into_remainder();
-        let offset = limit & !7;
+        let offset = N & !7;
         let mut i = 0;
         while i + 1 < rem.len() {
             let (s, c) = self.next_std_normal_pair_f64();
@@ -1011,13 +1007,12 @@ impl WyRand {
         limit: L,
     ) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        S: ParamSource<f32>,
-        L: ParamSource<f32>,
+        M: ParamSource<f32, N>,
+        S: ParamSource<f32, N>,
+        L: ParamSource<f32, N>,
     {
         let mut z: [f32; N] = self.make_filled_std_normal_f32();
-        let shared = N.min(mode.len()).min(sigma.len()).min(limit.len());
-        let mut iter = z[..shared].chunks_exact_mut(8);
+        let mut iter = z.chunks_exact_mut(8);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 3;
             let lim = limit.chunk::<8>(offset);
@@ -1033,7 +1028,7 @@ impl WyRand {
             ));
         }
         let rem = iter.into_remainder();
-        let offset = shared & !7;
+        let offset = N & !7;
         for (i, val) in rem.iter_mut().enumerate() {
             let lim = limit.get(offset + i);
             *val = val
@@ -1051,13 +1046,12 @@ impl WyRand {
         limit: L,
     ) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        S: ParamSource<f64>,
-        L: ParamSource<f64>,
+        M: ParamSource<f64, N>,
+        S: ParamSource<f64, N>,
+        L: ParamSource<f64, N>,
     {
         let mut z: [f64; N] = self.make_filled_std_normal_f64();
-        let shared = N.min(mode.len()).min(sigma.len()).min(limit.len());
-        let mut iter = z[..shared].chunks_exact_mut(4);
+        let mut iter = z.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 2;
             let lim = limit.chunk::<4>(offset);
@@ -1073,7 +1067,7 @@ impl WyRand {
             ));
         }
         let rem = iter.into_remainder();
-        let offset = shared & !3;
+        let offset = N & !3;
         for (i, val) in rem.iter_mut().enumerate() {
             let lim = limit.get(offset + i);
             *val = val
@@ -1090,8 +1084,8 @@ impl WyRand {
         sigma_ln: S,
     ) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        S: ParamSource<f32>,
+        M: ParamSource<f32, N>,
+        S: ParamSource<f32, N>,
     {
         let mut arr: [f32; N] = self.make_filled_normal_f32(ln_mode, sigma_ln);
         let mut iter = arr.chunks_exact_mut(8);
@@ -1113,8 +1107,8 @@ impl WyRand {
         sigma_ln: S,
     ) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        S: ParamSource<f64>,
+        M: ParamSource<f64, N>,
+        S: ParamSource<f64, N>,
     {
         let mut arr: [f64; N] = self.make_filled_normal_f64(ln_mode, sigma_ln);
         let mut iter = arr.chunks_exact_mut(4);
@@ -1136,8 +1130,8 @@ impl WyRand {
         sigma_log: S,
     ) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        S: ParamSource<f32>,
+        M: ParamSource<f32, N>,
+        S: ParamSource<f32, N>,
     {
         let mut arr: [f32; N] = self.make_filled_normal_f32(log_mode, sigma_log);
         let mut iter = arr.chunks_exact_mut(8);
@@ -1159,8 +1153,8 @@ impl WyRand {
         sigma_log: S,
     ) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        S: ParamSource<f64>,
+        M: ParamSource<f64, N>,
+        S: ParamSource<f64, N>,
     {
         let mut arr: [f64; N] = self.make_filled_normal_f64(log_mode, sigma_log);
         let mut iter = arr.chunks_exact_mut(4);
@@ -1183,20 +1177,14 @@ impl WyRand {
         sigma_hi: SHI,
     ) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        SLO: ParamSource<f32>,
-        SHI: ParamSource<f32>,
+        M: ParamSource<f32, N>,
+        SLO: ParamSource<f32, N>,
+        SHI: ParamSource<f32, N>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
-        let limit = slice
-            .len()
-            .min(mode.len())
-            .min(sigma_lo.len())
-            .min(sigma_hi.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(16);
+        let mut iter = slice.chunks_exact_mut(16);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 4;
             let u1_8 = self.next_f32_8();
@@ -1240,7 +1228,7 @@ impl WyRand {
             }
         }
         let rem = iter.into_remainder();
-        let offset = limit & !15;
+        let offset = N & !15;
         for (i, slot) in rem.iter_mut().enumerate() {
             let x = self.next_std_normal_f32();
             let m = mode.get(offset + i);
@@ -1262,13 +1250,12 @@ impl WyRand {
         sigma_hi: SHI,
     ) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        SLO: ParamSource<f64>,
-        SHI: ParamSource<f64>,
+        M: ParamSource<f64, N>,
+        SLO: ParamSource<f64, N>,
+        SHI: ParamSource<f64, N>,
     {
         let mut arr: [f64; N] = self.make_filled_std_normal_f64();
-        let limit = N.min(mode.len()).min(sigma_lo.len()).min(sigma_hi.len());
-        let mut iter = arr[..limit].chunks_exact_mut(4);
+        let mut iter = arr.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 2;
             let mut tmp = [0.0f64; 4];
@@ -1281,7 +1268,7 @@ impl WyRand {
             ));
         }
         let rem = iter.into_remainder();
-        let offset = limit & !3;
+        let offset = N & !3;
         for (i, val) in rem.iter_mut().enumerate() {
             let zlt: u64 = ((*val < 0.0) as u64).wrapping_neg();
             let zgeq: u64 = ((*val >= 0.0) as u64).wrapping_neg();
@@ -1299,15 +1286,13 @@ impl WyRand {
         table: T,
     ) -> [f32; N]
     where
-        M: ParamSource<f32>,
-        T: ParamSource<(f32, f32)>,
+        M: ParamSource<f32, N>,
+        T: ParamSource<(f32, f32), N>,
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice =
             unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
-        let limit = slice.len().min(mode.len()).min(table.len());
-        let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(16);
+        let mut iter = slice.chunks_exact_mut(16);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 4;
             let u1_8 = self.next_f32_8();
@@ -1349,7 +1334,7 @@ impl WyRand {
             }
         }
         let rem = iter.into_remainder();
-        let offset = limit & !15;
+        let offset = N & !15;
         for (i, slot) in rem.iter_mut().enumerate() {
             let x = self.next_std_normal_f32();
             let m = mode.get(offset + i);
@@ -1369,12 +1354,11 @@ impl WyRand {
         table: T,
     ) -> [f64; N]
     where
-        M: ParamSource<f64>,
-        T: ParamSource<(f64, f64)>,
+        M: ParamSource<f64, N>,
+        T: ParamSource<(f64, f64), N>,
     {
         let mut arr: [f64; N] = self.make_filled_std_normal_f64();
-        let limit = N.min(mode.len()).min(table.len());
-        let mut iter = arr[..limit].chunks_exact_mut(4);
+        let mut iter = arr.chunks_exact_mut(4);
         for (i, chunk) in iter.by_ref().enumerate() {
             let offset = i << 2;
             let mut tmp = [0.0f64; 4];
@@ -1394,7 +1378,7 @@ impl WyRand {
             ));
         }
         let rem = iter.into_remainder();
-        let offset = limit & !3;
+        let offset = N & !3;
         for (i, val) in rem.iter_mut().enumerate() {
             let (sig_lo, sig_hi) = table.get(offset + i);
             let zlt: u64 = ((*val < 0.0) as u64).wrapping_neg();
@@ -1502,7 +1486,7 @@ mod tests {
         let mut rng = WyRand::new(1);
         let n = 1024usize;
         let mode = 0.0f32;
-        let table = vec![(1.0f32, 2.0f32); n];
+        let table = [(1.0f32, 2.0f32); 1024];
         let buf: [f32; 1024] = rng.make_filled_split_normal_stuple_f32(mode, &table);
         let mut sum_lo = 0.0f32;
         let mut count_lo = 0;

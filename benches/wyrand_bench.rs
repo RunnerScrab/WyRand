@@ -345,7 +345,7 @@ fn bench_f32_rayleigh_cols(c: &mut Criterion) {
         })
     });
     group.bench_function("make_filled_stack", |b| {
-        let sigmas_n = vec![2.0f32; N];
+        let sigmas_n = [2.0f32; N];
         let mut rng = WyRand::new(1);
         b.iter(|| {
             let buf: [f32; N] = rng.make_filled_rayleigh_f32(&sigmas_n);
@@ -368,8 +368,8 @@ fn bench_f32_normal_cols(c: &mut Criterion) {
         })
     });
     group.bench_function("make_filled_stack", |b| {
-        let modes_n = vec![5.0f32; N];
-        let sigmas_n = vec![2.0f32; N];
+        let modes_n = [5.0f32; N];
+        let sigmas_n = [2.0f32; N];
         let mut rng = WyRand::new(1);
         b.iter(|| {
             let buf: [f32; N] = rng.make_filled_normal_f32(&modes_n, &sigmas_n);
