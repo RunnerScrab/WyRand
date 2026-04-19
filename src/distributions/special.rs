@@ -225,7 +225,8 @@ impl WyRand {
                 -2.0,
                 0.0,
             ));
-            chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &sigma.chunk(0)));
+            let s_chunk = sigma.chunk::<8>(offset);
+            chunk.copy_from_slice(&fptricks::batch_mul_cols_f32(&r, &s_chunk));
         }
         let rem = iter.into_remainder();
         let offset = limit & !7;
@@ -905,29 +906,66 @@ impl WyRand {
     {
         let mut buf = MaybeUninit::<[f32; N]>::uninit();
         let slice =
-            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f32, N) };
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f32>, N) };
         let limit = slice.len().min(sigma.len());
         let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(8);
-        for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i << 3;
-            let mut u: [f32; 8] = self.make_filled_uniform_f32();
-            (0..8).for_each(|idx| {
-                u[idx] = 1.0 - u[idx];
-            });
-            let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
-                fptricks::batch_approx_ln_f32(u),
-                -2.0,
-                0.0,
-            ));
-            let s_chunk = sigma.chunk::<8>(offset);
-            let res = fptricks::batch_mul_cols_f32(&r, &s_chunk);
-            chunk.copy_from_slice(&res);
+
+        #[cfg(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        ))]
+        {
+            unsafe {
+                use core::arch::x86_64::*;
+                let mut iter = active.chunks_exact_mut(8);
+                let ntwos: __m256 = _mm256_set1_ps(-2.0);
+                for (i, chunk) in iter.by_ref().enumerate() {
+                    let mut u = self.make_filled_uniform_f32::<8>();
+                    (0..8).for_each(|j| { u[j] = 1.0 - u[j]; });
+                    let x: __m256 = core::mem::transmute(u); 
+                    let r = _mm256_sqrt_ps(_mm256_mul_ps(fptricks::raw_batch_ln_f32(x), ntwos));
+                    let s_arr = sigma.chunk::<8>(i << 3);
+                    let s: __m256 = core::mem::transmute(s_arr); 
+                    let c: __m256 = _mm256_mul_ps(r, s);
+                    _mm256_storeu_ps(chunk.as_mut_ptr() as *mut f32, c);
+                }
+                let rem = iter.into_remainder();
+                let offset = limit & !7;
+                for (i, slot) in rem.iter_mut().enumerate() {
+                    slot.write(self.next_rayleigh_f32(sigma.get(offset + i)));
+                }
+            }
         }
-        let rem = iter.into_remainder();
-        let offset = limit & !7;
-        for (i, slot) in rem.iter_mut().enumerate() {
-            *slot = self.next_rayleigh_f32(sigma.get(offset + i));
+        #[cfg(not(all(
+            target_arch = "x86_64",
+            target_feature = "avx2",
+            target_feature = "fma"
+        )))]
+        {
+            let mut iter = active.chunks_exact_mut(8);
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let offset = i << 3;
+                let mut u: [f32; 8] = self.make_filled_uniform_f32();
+                (0..8).for_each(|idx| {
+                    u[idx] = 1.0 - u[idx];
+                });
+                let r = fptricks::batch_approx_sqrt_f32(fptricks::batch_fmadd_f32(
+                    fptricks::batch_approx_ln_f32(u),
+                    -2.0,
+                    0.0,
+                ));
+                let s_chunk = sigma.chunk::<8>(offset);
+                let res = fptricks::batch_mul_cols_f32(&r, &s_chunk);
+                for j in 0..8 {
+                    chunk[j].write(res[j]);
+                }
+            }
+            let rem = iter.into_remainder();
+            let offset = limit & !7;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                slot.write(self.next_rayleigh_f32(sigma.get(offset + i)));
+            }
         }
         unsafe { buf.assume_init() }
     }
@@ -939,29 +977,68 @@ impl WyRand {
     {
         let mut buf = MaybeUninit::<[f64; N]>::uninit();
         let slice =
-            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut f64, N) };
+            unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut MaybeUninit<f64>, N) };
         let limit = slice.len().min(sigma.len());
         let (active, _) = slice.split_at_mut(limit);
-        let mut iter = active.chunks_exact_mut(4);
-        for (i, chunk) in iter.by_ref().enumerate() {
-            let offset = i << 2;
-            let mut u: [f64; 4] = self.make_filled_uniform_f64();
-            (0..4).for_each(|idx| {
-                u[idx] = 1.0 - u[idx];
-            });
-            let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(
-                fptricks::batch_approx_ln_f64(u),
-                -2.0,
-                0.0,
-            ));
-            let s_chunk = sigma.chunk::<4>(offset);
-            let res = fptricks::batch_mul_cols_f64(&r, &s_chunk);
-            chunk.copy_from_slice(&res);
+
+        #[cfg(all(
+                target_arch = "x86_64",
+                target_feature = "avx2",
+                target_feature = "fma"
+            ))]
+        {
+            unsafe {
+                use core::arch::x86_64::*;
+                let mut iter = active.chunks_exact_mut(4);
+                let ntwos: __m256d = _mm256_set1_pd(-2.0);
+                for (i, chunk) in iter.by_ref().enumerate() {
+                    let mut u: [f64; 4] = self.make_filled_uniform_f64();
+                    (0..4).for_each(|idx| {
+                        u[idx] = 1.0 - u[idx];
+                    });
+                    let x: __m256d = core::mem::transmute(u);
+                    let r = _mm256_sqrt_pd(_mm256_mul_pd(fptricks::raw_batch_ln_f64(x), ntwos));
+                    let s_arr = sigma.chunk::<4>(i << 2);
+                    let s: __m256d = core::mem::transmute(s_arr);
+                    let c: __m256d = _mm256_mul_pd(r, s);
+                    _mm256_storeu_pd(chunk.as_mut_ptr() as *mut f64, c);
+                }
+                let rem = iter.into_remainder();
+                let offset = limit & !3;
+                for (i, slot) in rem.iter_mut().enumerate() {
+                    slot.write(self.next_rayleigh_f64(sigma.get(offset + i)));
+                }
+            }
         }
-        let rem = iter.into_remainder();
-        let offset = limit & !3;
-        for (i, slot) in rem.iter_mut().enumerate() {
-            *slot = self.next_rayleigh_f64(sigma.get(offset + i));
+        #[cfg(not(all(
+                target_arch = "x86_64",
+                target_feature = "avx2",
+                target_feature = "fma"
+            )))]
+        {
+            let mut iter = active.chunks_exact_mut(4);
+            for (i, chunk) in iter.by_ref().enumerate() {
+                let offset = i << 2;
+                let mut u: [f64; 4] = self.make_filled_uniform_f64();
+                (0..4).for_each(|idx| {
+                    u[idx] = 1.0 - u[idx];
+                });
+                let r = fptricks::batch_approx_sqrt_f64(fptricks::batch_fmadd_f64(
+                    fptricks::batch_approx_ln_f64(u),
+                    -2.0,
+                    0.0,
+                ));
+                let s_chunk = sigma.chunk::<4>(offset);
+                let res = fptricks::batch_mul_cols_f64(&r, &s_chunk);
+                for j in 0..4 {
+                    chunk[j].write(res[j]);
+                }
+            }
+            let rem = iter.into_remainder();
+            let offset = limit & !3;
+            for (i, slot) in rem.iter_mut().enumerate() {
+                slot.write(self.next_rayleigh_f64(sigma.get(offset + i)));
+            }
         }
         unsafe { buf.assume_init() }
     }
