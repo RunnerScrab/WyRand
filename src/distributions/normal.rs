@@ -45,6 +45,33 @@ impl WyRand {
         (r * s, r * c)
     }
 
+    /// Generate 4 Box-Muller pairs (8 standard normal f32 values) using
+    /// batch-4 SIMD for all transcendentals.  Returns interleaved
+    /// `[sin0, cos0, sin1, cos1, sin2, cos2, sin3, cos3]`.
+    #[inline(always)]
+    pub fn next_std_normal_4pairs_f32(&mut self) -> [f32; 8] {
+        let u1_raw = self.next_f32_4();
+        let u2_raw = self.next_f32_4();
+
+        let mut u1 = [0.0f32; 4];
+        let mut u2 = [0.0f32; 4];
+        for j in 0..4 {
+            u1[j] = (1.0 - u1_raw[j]).max(f32::MIN_POSITIVE);
+            u2[j] = 1.0 - u2_raw[j];
+        }
+
+        let r = fptricks::batch4_approx_sqrt_f32(
+            fptricks::batch4_fmadd_f32(fptricks::batch4_approx_ln_f32(u1), -2.0, 0.0),
+        );
+        let (s, c) = fptricks::batch4_approx_sin_cos_f32(
+            fptricks::batch4_fmadd_f32(u2, Self::TWO_PI_F32, 0.0),
+        );
+        let ps = fptricks::batch4_mul_cols_f32(r, s);
+        let pc = fptricks::batch4_mul_cols_f32(r, c);
+
+        [ps[0], pc[0], ps[1], pc[1], ps[2], pc[2], ps[3], pc[3]]
+    }
+
     #[inline(always)]
     pub fn next_normal_f32(&mut self, mode: f32, sigma: f32) -> f32 {
         self.next_std_normal_f32().mul_add(sigma, mode)

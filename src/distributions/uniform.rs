@@ -58,6 +58,22 @@ impl WyRand {
     }
 
     #[inline(always)]
+    pub(crate) fn next_f32_4(&mut self) -> [f32; 4] {
+        let mut u = [0.0f32; 4];
+        let mut s = self.0;
+        (0..4).for_each(|j| {
+            s = s.wrapping_add(Self::INC);
+            let tmp = (s as u128).wrapping_mul(0xa3b195354a39b70d);
+            let m1 = ((tmp >> 64) as u64) ^ (tmp as u64);
+            let tmp2 = (m1 as u128).wrapping_mul(0x1b03738712fad5c9);
+            let rv = ((tmp2 >> 64) as u64) ^ (tmp2 as u64);
+            u[j] = f32::from_bits(((rv & Self::FLOAT32_MASK) | 0x3F80_0000) as u32) - 1.0;
+        });
+        self.0 = self.0.wrapping_add(Self::INC << 2);
+        u
+    }
+
+    #[inline(always)]
     pub(crate) fn next_f64_8(&mut self) -> [f64; 8] {
         let mut u = [0.0f64; 8];
         let mut s = self.0;
