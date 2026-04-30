@@ -175,7 +175,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 [[package]]
 name = "fptricks"
 version = "0.1.0"
-source = "git+https://github.com/RunnerScrab/fptricks.git#0e603ada3b68cf2fe9eb6038d881a31b8d0a5a7d"
+source = "git+https://github.com/RunnerScrab/fptricks.git#c46cb851dc9652aaf81e65c61144cb03b200a041"
 dependencies = [
  "log",
 ]

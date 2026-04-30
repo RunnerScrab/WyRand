@@ -45,20 +45,24 @@ impl WyRand {
         (r * s, r * c)
     }
 
-    /// Generate 4 Box-Muller pairs (8 standard normal f32 values) using
-    /// batch-4 SIMD for all transcendentals.  Returns interleaved
-    /// `[sin0, cos0, sin1, cos1, sin2, cos2, sin3, cos3]`.
+    /// Generate 3 Box-Muller pairs (6 standard normal f32 values) using
+    /// batch-4 SIMD for ln, sqrt, sin_cos.  The 4th SIMD lane is a
+    /// harmless dummy — no extra RNG is consumed beyond the 6 uniforms
+    /// required for 3 pairs.
+    ///
+    /// Returns interleaved `[sin0, cos0, sin1, cos1, sin2, cos2]`.
     #[inline(always)]
-    pub fn next_std_normal_4pairs_f32(&mut self) -> [f32; 8] {
-        let u1_raw = self.next_f32_4();
-        let u2_raw = self.next_f32_4();
+    pub fn next_std_normal_3pairs_f32(&mut self) -> [f32; 6] {
+        let u1_0 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
+        let u2_0 = 1.0 - self.next_uniform_f32();
+        let u1_1 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
+        let u2_1 = 1.0 - self.next_uniform_f32();
+        let u1_2 = (1.0 - self.next_uniform_f32()).max(f32::MIN_POSITIVE);
+        let u2_2 = 1.0 - self.next_uniform_f32();
 
-        let mut u1 = [0.0f32; 4];
-        let mut u2 = [0.0f32; 4];
-        for j in 0..4 {
-            u1[j] = (1.0 - u1_raw[j]).max(f32::MIN_POSITIVE);
-            u2[j] = 1.0 - u2_raw[j];
-        }
+        // Pad to 4 for SIMD; dummy lane uses MIN_POSITIVE (safe for ln)
+        let u1 = [u1_0, u1_1, u1_2, f32::MIN_POSITIVE];
+        let u2 = [u2_0, u2_1, u2_2, 0.0];
 
         let r = fptricks::batch4_approx_sqrt_f32(
             fptricks::batch4_fmadd_f32(fptricks::batch4_approx_ln_f32(u1), -2.0, 0.0),
@@ -69,7 +73,7 @@ impl WyRand {
         let ps = fptricks::batch4_mul_cols_f32(r, s);
         let pc = fptricks::batch4_mul_cols_f32(r, c);
 
-        [ps[0], pc[0], ps[1], pc[1], ps[2], pc[2], ps[3], pc[3]]
+        [ps[0], pc[0], ps[1], pc[1], ps[2], pc[2]]
     }
 
     #[inline(always)]
